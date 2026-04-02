@@ -65,7 +65,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
     return path.startsWith('http') ? path : `http://localhost:8000/storage/${path}`;
   };
 
-  // 2. Statistik (Konsisten dengan Staff)
+  // Statistik 
   const stats = useMemo(() => {
     const total = data.length;
     const returned = data.filter(item => item.status === 'returned').length;
@@ -77,7 +77,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 relative">
       
-      {/* HEADER (Konsisten dengan Staff) */}
+      {/* HEADER */}
       <SectionHeader
         title="Riwayat Peminjaman"
         description="Monitor dan dokumentasi seluruh aktivitas peminjaman alat laboratorium"
@@ -92,7 +92,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
         }
       />
 
-      {/* STATISTICS CARDS (Konsisten dengan Staff) */}
+      {/* STATISTICS CARDS */}
       {!loading && data.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard title="Total Riwayat" value={stats.total} icon="bi-archive" color="blue" />
@@ -102,7 +102,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
         </div>
       )}
 
-      {/* TABLE (Konsisten dengan Staff) */}
+      {/* TABLE */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border-2 border-slate-100">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -161,7 +161,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Dokumentasi Zoom */}
+                    {/* Dokumentasi */}
                     <td className="p-4">
                       <div className="flex justify-center gap-2">
                         <div className="flex flex-col items-center gap-1">
@@ -216,7 +216,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL ZOOM (Z-INDEX 9999) */}
+      {/* MODAL ZOOM */}
       {selectedImg && (
         <div 
           className="fixed inset-0 w-screen h-screen bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4 md:p-10 transition-all duration-300"
@@ -238,7 +238,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
   );
 };
 
-// Sub-komponen StatCard, LoadingRow, dan EmptyRow agar konsisten dengan Staff
+// Sub-komponen StatCard, LoadingRow, dan EmptyRow 
 const StatCard = ({ title, value, icon, color }: any) => (
   <div className={`bg-gradient-to-br from-${color}-50 to-${color}-100 border border-${color}-200 rounded-2xl p-4 shadow-sm`}>
     <div className="flex items-center justify-between">
