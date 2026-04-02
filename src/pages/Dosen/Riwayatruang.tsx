@@ -59,7 +59,7 @@ const RiwayatRuangDosen: React.FC = () => {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 relative">
       
-      {/* HEADER (Konsisten dengan Staff) */}
+      {/* HEADER */}
       <SectionHeader
         title="Riwayat Penggunaan Ruang"
         description="Pantau aktivitas penggunaan ruangan laboratorium secara real-time"
@@ -74,7 +74,7 @@ const RiwayatRuangDosen: React.FC = () => {
         }
       />
 
-      {/* STATISTICS CARDS (Konsisten dengan Staff) */}
+      {/* STATISTICS CARDS */}
       {!loading && data.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <StatCard title="Total Riwayat" value={stats.total} icon="bi-door-open" color="blue" />
@@ -194,7 +194,7 @@ const RiwayatRuangDosen: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL ZOOM (Z-INDEX 9999) */}
+      {/* MODAL ZOOM */}
       {selectedImg && (
         <div 
           className="fixed inset-0 w-screen h-screen bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4 md:p-10 transition-all duration-300"
@@ -216,7 +216,7 @@ const RiwayatRuangDosen: React.FC = () => {
   );
 };
 
-// Sub-komponen (Sama dengan UI Staff)
+// Sub-komponen 
 const StatCard = ({ title, value, icon, color }: any) => (
   <div className={`bg-gradient-to-br from-${color}-50 to-${color}-100 border border-${color}-200 rounded-2xl p-4 shadow-sm`}>
     <div className="flex items-center justify-between">
