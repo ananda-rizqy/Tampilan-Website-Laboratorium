@@ -34,12 +34,12 @@ const Login: React.FC = () => {
 
   const handleGoogleResponse = async (response: any) => {
     try {
-      // 1. Kirim ID Token ke Laravel
+      // Kirim ID Token ke Laravel
       const res = await axios.post("http://localhost:8000/api/auth/google", {
         token: response.credential,
       });
 
-      // 2. Ambil data dari response Laravel
+      // Ambil data dari response Laravel
       const { user, token } = res.data;
 
       if (user && token) {
@@ -49,8 +49,6 @@ const Login: React.FC = () => {
 
         console.log("Login Berhasil sebagai:", user.role);
         
-        // 4. Gunakan window.location agar App.tsx merefresh state user-nya secara total
-        // Ini solusi paling ampuh jika sering 'mental' balik ke login
         window.location.href = "/dashboard";
       }
     } catch (error: any) {
