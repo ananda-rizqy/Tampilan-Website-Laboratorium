@@ -165,7 +165,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
                     <td className="p-4">
                       <div className="flex justify-center gap-2">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-[8px] font-black text-slate-400 uppercase">In</span>
+                          <span className="text-[8px] font-black text-slate-400 uppercase">Before</span>
                           {getImageUrl(item.foto_before) ? (
                             <img 
                               src={getImageUrl(item.foto_before)!} 
@@ -176,7 +176,7 @@ const RiwayatPeminjamanDosen: React.FC = () => {
                           ) : <div className="w-12 h-12 bg-slate-50 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-200"><i className="bi bi-image text-slate-200"></i></div>}
                         </div>
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-[8px] font-black text-slate-400 uppercase">Out</span>
+                          <span className="text-[8px] font-black text-slate-400 uppercase">After</span>
                           {getImageUrl(item.foto_after) ? (
                             <img 
                               src={getImageUrl(item.foto_after)!} 
