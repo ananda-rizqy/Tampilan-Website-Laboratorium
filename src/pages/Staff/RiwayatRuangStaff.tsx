@@ -109,22 +109,38 @@ const RiwayatRuangStaff: React.FC = () => {
                       <td className="p-4">
                         <div className="flex flex-col gap-2">
                           <span className="font-bold text-slate-400 text-[10px]">#{item.id}</span>
-                          <div className="flex gap-2">
+                          <div className="flex gap-3">
+                            {/* BEFORE PHOTO */}
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Before</span>
                             <img 
                               src={item.foto_before} 
                               onClick={() => setSelectedImg(item.foto_before)}
-                              className="w-12 h-12 object-cover rounded-xl border-2 border-slate-200 cursor-pointer hover:border-indigo-500 hover:scale-110 transition-all shadow-sm" 
-                              alt="In" 
-                            />
-                            <img 
-                              src={item.foto_after} 
-                              onClick={() => setSelectedImg(item.foto_after)}
-                              className="w-12 h-12 object-cover rounded-xl border-2 border-slate-200 cursor-pointer hover:border-indigo-500 hover:scale-110 transition-all shadow-sm" 
-                              alt="Out" 
+                              className="w-14 h-14 object-cover rounded-xl border-2 border-slate-200 cursor-zoom-in hover:border-indigo-500 hover:scale-110 transition-all shadow-sm" 
+                              alt="Before" 
                             />
                           </div>
+      
+                            {/* AFTER PHOTO */}
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">After</span>
+                            {item.foto_after && !item.kondisi_keluar.toLowerCase().includes('belum') ? (
+                              <img 
+                                src={item.foto_after} 
+                                onClick={() => setSelectedImg(item.foto_after)}
+                                className="w-14 h-14 object-cover rounded-xl border-2 border-slate-200 cursor-zoom-in hover:border-emerald-500 hover:scale-110 transition-all shadow-sm" 
+                                alt="After" 
+                              />
+                              ) : (
+                          <div className="w-14 h-14 bg-slate-100 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
+                            <i className="bi bi-hourglass-split text-amber-400 text-lg"></i>
+                            <span className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">Wait</span>
+                          </div>
+                          )}
                         </div>
-                      </td>
+                      </div>
+                    </div>
+                  </td>
 
                       <td className="p-4">
                         <div className="font-black text-slate-800 uppercase italic leading-none text-sm">

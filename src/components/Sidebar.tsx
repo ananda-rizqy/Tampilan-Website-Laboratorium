@@ -36,11 +36,11 @@ const Sidebar: React.FC = () => {
     { name: "Persetujuan Pinjam", icon: "bi-check2-square", path: "/staff/persetujuan", roles: ["staff"] },
     { name: "Laporan Kerusakan", icon: "bi-exclamation-triangle-fill", path: "/aduan", roles: ["staff"] },
     { name: "Riwayat Peminjaman", icon: "bi-clock-history", path: "/riwayat_peminjaman", roles: ["staff"] },
-    { name: "Riwayat Ruang Staff", icon: "bi-calendar-check", path: "/riwayat-staff", roles: ["staff"] },
+    { name: "Riwayat Penggunaan Ruang", icon: "bi-calendar-check", path: "/riwayat-staff", roles: ["staff"] },
 
     // MENU DOSEN
     { name: "Riwayat Peminjaman", icon: "bi-clock-history", path: "/pantau-riwayat", roles: ["dosen"] },
-    { name: "Riwayat Ruang Dosen", icon: "bi-calendar-check", path: "/pantau-ruang", roles: ["dosen"] },
+    { name: "Riwayat Penggunaan Ruang", icon: "bi-calendar-check", path: "/pantau-ruang", roles: ["dosen"] },
 
   //   // MENU ADMIN (GENERATE QR PINTU)
     // { name: "Master QR Pintu", icon: "bi-qr-code", path: "/generate-qr", roles: ["mahasiswa", "staff", "dosen"] },
