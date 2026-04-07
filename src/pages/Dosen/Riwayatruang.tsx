@@ -112,27 +112,36 @@ const RiwayatRuangDosen: React.FC = () => {
                       <td className="p-4">
                         <div className="flex flex-col gap-2">
                           <span className="font-bold text-slate-400 text-[10px]">#{item.id}</span>
-                          <div className="flex gap-2">
+                          <div className="flex gap-3">
+                            {/* Container Foto Before */}
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter">Before</span>
                             <img 
                               src={item.foto_before || ''} 
                               onClick={() => item.foto_before && setSelectedImg(item.foto_before)}
-                              className="w-12 h-12 object-cover rounded-xl border-2 border-slate-200 cursor-pointer hover:border-indigo-500 hover:scale-110 transition-all shadow-sm" 
-                              alt="In" 
+                              className="w-12 h-12 object-cover rounded-xl border-2 border-emerald-200 cursor-pointer hover:border-emerald-500 hover:scale-110 transition-all shadow-sm" 
+                              alt="Before" 
                             />
+                          </div>
+                            {/* Container Foto After */}
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-[8px] font-black text-amber-600 uppercase tracking-tighter">After</span>
                             {item.foto_after ? (
                               <img 
                                 src={item.foto_after} 
                                 onClick={() => setSelectedImg(item.foto_after!)}
-                                className="w-12 h-12 object-cover rounded-xl border-2 border-slate-200 cursor-pointer hover:border-indigo-500 hover:scale-110 transition-all shadow-sm" 
-                                alt="Out" 
+                                className="w-12 h-12 object-cover rounded-xl border-2 border-amber-200 cursor-pointer hover:border-amber-500 hover:scale-110 transition-all shadow-sm" 
+                                alt="After" 
                               />
                             ) : (
-                                <div className="w-12 h-12 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-[8px] text-slate-300 font-bold italic">Wait</div>
+                              <div className="w-12 h-12 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-[8px] text-slate-300 font-bold italic">
+                                Wait
+                              </div>
                             )}
                           </div>
                         </div>
-                      </td>
-
+                      </div>
+                    </td>
                       {/* Mahasiswa */}
                       <td className="p-4">
                         <div className="font-black text-slate-800 uppercase italic leading-none text-sm">{item.nama_mahasiswa}</div>
