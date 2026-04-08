@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,40 +8,67 @@ import {
 } from "@tanstack/react-table";
 
 import api from "../../api/axios";
-import { Badge } from "../../components/atoms/Badge";
-import { Button } from "../../components/ui/Button";
 import { SectionHeader } from "../../components/molecules/SectionHeader";
 import { InventoryTable } from "../../components/organism/InventoryTable";
+import React from "react";
+import Webcam from "react-webcam";
 
+// --- Interfaces ---
 interface Alat {
   id: number;
   nama_alat: string;
   letak: string;
   jumlah: number;
-  kode_tag?: string;
+  kode_tag_list?: string[];
+  is_aset?: boolean;
 }
 
 interface CartItem extends Alat {
+  selected_tag: string;
   qty: number;
 }
 
-const LAB_OPTIONS = [
-  { name: "Laboratorium Barat", icon: "bi-activity", color: "from-blue-500 to-blue-700" },
-  { name: "Laboratorium Timur", icon: "bi-hdd-network", color: "from-orange-500 to-orange-700" },
-  { name: "Laboratorium MST", icon: "bi-cpu-fill", color: "from-purple-500 to-purple-700" },
-  { name: "Laboratorium Broadcast", icon: "bi-camera-reels", color: "from-pink-500 to-pink-700" }
+// 1. DAFTAR KATALOG (Tampilan Awal - Untuk Filter Pencarian)
+const LAB_GROUPS = [
+  { name: "Laboratorium Barat", icon: "bi-activity", color: "from-blue-600 to-blue-800" },
+  { name: "Laboratorium Timur", icon: "bi-hdd-network", color: "from-orange-600 to-orange-800" },
+  { name: "Laboratorium MST", icon: "bi-cpu-fill", color: "from-purple-600 to-purple-800" },
+  { name: "Laboratorium Broadcast", icon: "bi-camera-reels", color: "from-pink-600 to-pink-800" }
+];
+
+// 2. DAFTAR RUANGAN SPESIFIK (Lokasi Penggunaan - Bisa kamu tambah/kurang di sini)
+const RUANGAN_SPESIFIK = [
+  "Laboratorium Barat 1",
+  "Laboratorium Barat 2",
+  "Laboratorium Timur 1",
+  "Laboratorium Timur 2",
+  "Laboratorium Broadcast",
+  "Laboratorium Jaringan Komputer"
 ];
 
 export default function PeminjamanPage() {
-  const [selectedLab, setSelectedLab] = useState<string | null>(null);
+  const webcamRef = useRef<Webcam>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  // --- States ---
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [alatList, setAlatList] = useState<Alat[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [globalFilter, setGlobalFilter] = useState("");
   
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isFormStep, setIsFormStep] = useState(false);
+  
+  // Form States
+  const [targetRoom, setTargetRoom] = useState(""); 
   const [tujuan, setTujuan] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  
+
+  // --- Handlers ---
   const fetchData = useCallback(async (labName: string) => {
     try {
       setLoading(true);
@@ -53,119 +80,123 @@ export default function PeminjamanPage() {
       setLoading(false);
     }
   }, []);
-
-  const handleSelectLab = (lab: string) => {
-    setSelectedLab(lab);
+  
+  const handleSelectGroup = (lab: string) => {
+    setSelectedGroup(lab);
     fetchData(lab);
   };
 
+  const capture = useCallback(() => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      setImagePreview(imageSrc); // Untuk tampilan di UI
+      
+      // KONVERSI BASE64 KE BLOB
+      const byteString = atob(imageSrc.split(',')[1]);
+      const mimeString = imageSrc.split(',')[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeString });
+      
+      // Jadikan File asli
+      const file = new File([blob], "foto_alat.jpg", { type: "image/jpeg" });
+      setImageFile(file); // Simpan ke state imageFile
+      setShowCamera(false);
+    }
+}, [webcamRef]);
+
+ 
+
   const addToCart = (alat: Alat) => {
-    if (!alat.id) return alert("Error: Alat tidak memiliki ID.");
-    const isExist = cart.find((item) => item.id === alat.id);
-    if (isExist) return alert("Alat sudah ada di keranjang!");
-    
-    setCart([...cart, { ...alat, qty: 1 }]);
-    setIsCartOpen(true);
+    if (cart.find((item) => item.nama_alat === alat.nama_alat)) {
+      return alert("Alat ini sudah ada di keranjang!");
+    }
+    setCart([...cart, { ...alat, qty: 1, selected_tag: "" }]);
   };
 
-  const updateQty = (id: number, newQty: number, max: number) => {
+  const updateCartItem = (nama: string, field: string, value: any) => {
     setCart(prev => prev.map(item => 
-      item.id === id ? { ...item, qty: Math.max(1, Math.min(newQty, max)) } : item
+      item.nama_alat === nama ? { ...item, [field]: value } : item
     ));
   };
 
   const handleCheckout = async () => {
+    if (!targetRoom) return alert("Harap pilih ruangan laboratorium tujuan!");
     if (!tujuan.trim()) return alert("Harap isi tujuan penggunaan alat!");
+    if (!imageFile) return alert("Harap ambil foto kondisi alat!");
+    
+    const invalidItem = cart.find(item => item.is_aset && !item.selected_tag);
+    if (invalidItem) return alert(`Harap pilih Kode Tag untuk ${invalidItem.nama_alat}`);
+
+    const formData = new FormData();
+    formData.append("ruangan_lab", targetRoom); 
+    formData.append("tujuan", tujuan);
+    formData.append("foto_before", imageFile);
+   const itemsPayload = cart.map(item => ({ 
+    id: item.id, 
+    qty: item.qty, 
+    kode_tag_list: item.selected_tag 
+}));
+formData.append("items", JSON.stringify(itemsPayload));
+
     try {
-      const payload = {
-        ruangan_lab: selectedLab,
-        tujuan: tujuan,
-        items: cart.map(item => ({ id: Number(item.id), qty: Number(item.qty) }))
-      };
-      
-      await api.post("/peminjaman/ajukan", payload);
-      alert("✅ Berhasil mengajukan peminjaman!");
-      setCart([]);
-      setTujuan("");
+      setLoading(true);
+      await api.post("/peminjaman/ajukan", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert("✅ Pengajuan berhasil dikirim!");
+      setCart([]); setTujuan(""); setTargetRoom(""); setImagePreview(null); setImageFile(null);
       setIsCartOpen(false);
     } catch (err) {
       alert("❌ Gagal memproses peminjaman.");
+      } finally {
+      setLoading(false);
     }
   };
 
+  // --- Table Columns ---
   const columns = useMemo<ColumnDef<Alat>[]>(() => [
     { 
       header: "NO", 
-      cell: (info) => (
-        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
-          {info.row.index + 1}
-        </div>
-      )
+      cell: (info) => <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500">{info.row.index + 1}</div>
     },
     { 
       header: "NAMA ALAT", 
       accessorKey: "nama_alat", 
       cell: ({ row }) => (
         <div>
-          <div className="font-bold text-slate-900">{row.original.nama_alat}</div>
-          <div className="text-xs text-slate-500 mt-0.5">
-            <i className="bi bi-geo-alt text-slate-400"></i> {row.original.letak}
+          <div className="font-black text-slate-900 uppercase italic text-xs leading-tight">{row.original.nama_alat}</div>
+          <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest flex items-center gap-1">
+            <i className="bi bi-geo-alt-fill text-indigo-500"></i> {row.original.letak}
           </div>
         </div>
       )
     },
     { 
-      header: "KODE TAG", 
-      accessorKey: "kode_tag", 
-      cell: ({ row }) => (
-        row.original.kode_tag ? (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg">
-            <i className="bi bi-tag-fill text-indigo-600 text-xs"></i>
-            <code className="text-sm font-bold text-indigo-700">
-              {row.original.kode_tag}
-            </code>
-          </div>
-        ) : (
-          <span className="text-xs text-slate-400 italic">Konsumsi</span>
-        )
-      )
-    },
-    { 
-      header: "STOK TERSEDIA", 
+      header: "STOK", 
       accessorKey: "jumlah", 
-      cell: ({ row }) => {
-        const jumlah = row.original.jumlah;
-        const isLow = jumlah <= 5;
-        
-        return (
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold ${
-            isLow 
-              ? 'bg-orange-50 text-orange-700 border border-orange-200' 
-              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-          }`}>
-            <i className={`bi ${isLow ? 'bi-exclamation-triangle-fill' : 'bi-box-seam'} text-sm`}></i>
-            <span>{jumlah} Unit</span>
-          </div>
-        );
-      }
+      cell: ({ row }) => <div className="px-3 py-1 rounded-lg font-black text-[10px] border w-fit bg-emerald-50 text-emerald-600 border-emerald-100 uppercase">{row.original.jumlah} unit</div>
     },
     {
       header: "AKSI",
       id: "actions",
-      cell: ({ row }) => (
-        <button
-          disabled={row.original.jumlah <= 0}
-          onClick={() => addToCart(row.original)}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all ${
-            row.original.jumlah <= 0
-              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-lg'
-          }`}
-        >
-          <i className="bi bi-cart-plus"></i>
-          <span>Tambah</span>
-        </button>
-      ),
+      cell: ({ row }) => {
+        const isAdded = cart.some(item => item.nama_alat === row.original.nama_alat);
+        return (
+          <button
+            disabled={row.original.jumlah <= 0 || isAdded}
+            onClick={() => addToCart(row.original)}
+            className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm ${
+              isAdded ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-slate-900'
+            }`}
+          >
+            {isAdded ? "Added" : "Pinjam"}
+          </button>
+        );
+      },
     },
   ], [cart, alatList]);
 
@@ -177,250 +208,215 @@ export default function PeminjamanPage() {
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    initialState: {
-      pagination: { pageSize: 10 },
-    },
+    initialState: { pagination: { pageSize: 8 } },
   });
 
-  // Statistik
-  const stats = useMemo(() => {
-    const total = alatList.length;
-    const tersedia = alatList.filter(a => a.jumlah > 0).length;
-    const lowStock = alatList.filter(a => a.jumlah > 0 && a.jumlah <= 5).length;
-    
-    return { total, tersedia, lowStock };
-  }, [alatList]);
-
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6 relative">
-      
-      {/* KONDISI 1: PILIH LAB */}
-      {!selectedLab ? (
-        <div className="space-y-8">
-          <SectionHeader 
-            title="Pilih Laboratorium" 
-            description="Tentukan ruangan laboratorium untuk melihat alat yang tersedia" 
-          />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {LAB_OPTIONS.map((lab) => (
-              <button 
-                key={lab.name} 
-                onClick={() => handleSelectLab(lab.name)} 
-                className="group relative h-56 rounded-3xl overflow-hidden transition-all hover:scale-105 shadow-lg hover:shadow-2xl"
-              >
-                <div className={`absolute inset-0 bg-gradient-to-br ${lab.color} opacity-90 group-hover:opacity-100 transition-opacity`}></div>
-                <div className="relative h-full flex flex-col items-center justify-center text-white p-6">
-                  <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 pb-24">
+      {/* 1. VIEW PEMILIHAN KATALOG */}
+      {!selectedGroup ? (
+        <div className="space-y-8 animate-in fade-in duration-500">
+          <SectionHeader title="Sistem Peminjaman" description="Pilih kategori laboratorium untuk melihat daftar alat" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {LAB_GROUPS.map((lab) => (
+              <button key={lab.name} onClick={() => handleSelectGroup(lab.name)} className={`group relative h-48 rounded-[2rem] overflow-hidden transition-all hover:-translate-y-2 shadow-xl bg-gradient-to-br ${lab.color}`}>
+                <div className="flex flex-col items-center justify-center text-white h-full p-6 text-center">
+                  <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4 border border-white/30 group-hover:rotate-12 transition-transform">
                     <i className={`bi ${lab.icon} text-3xl`}></i>
                   </div>
-                  <h3 className="font-black text-lg text-center uppercase tracking-tight">{lab.name}</h3>
-                  <p className="text-xs mt-2 text-white/80">Klik untuk melihat alat</p>
+                  <h3 className="font-black text-xs uppercase tracking-tighter">{lab.name}</h3>
                 </div>
               </button>
             ))}
           </div>
         </div>
       ) : (
-        /* KONDISI 2: DAFTAR ALAT */
-        <div className="space-y-6">
-          {/* HEADER */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <button 
-                onClick={() => setSelectedLab(null)} 
-                className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 mb-3 transition-colors"
-              >
-                <i className="bi bi-arrow-left"></i>
-                <span>Ganti Ruangan</span>
-              </button>
-              <h2 className="text-3xl font-black text-slate-900">
-                Alat di <span className="text-indigo-600">{selectedLab}</span>
-              </h2>
-            </div>
-          </div>
-
-          {/* STATISTICS CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Total Alat</p>
-                  <p className="text-2xl font-black text-blue-900 mt-1">{stats.total}</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                  <i className="bi bi-box-seam text-white text-xl"></i>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Tersedia</p>
-                  <p className="text-2xl font-black text-emerald-900 mt-1">{stats.tersedia}</p>
-                </div>
-                <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center">
-                  <i className="bi bi-check-circle-fill text-white text-xl"></i>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-orange-600 uppercase tracking-wider">Stok Terbatas</p>
-                  <p className="text-2xl font-black text-orange-900 mt-1">{stats.lowStock}</p>
-                </div>
-                <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
-                  <i className="bi bi-exclamation-triangle-fill text-white text-xl"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* SEARCH BAR */}
-          <div className="relative max-w-md">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-4">
-               <i className="bi bi-search text-slate-400 text-lg"></i>
-            </span>
-            <input
-              type="text"
-              value={globalFilter ?? ""}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="block w-full rounded-2xl border-2 border-slate-200 bg-white py-3.5 pl-12 pr-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 transition-all"
-              placeholder="Cari alat atau kode tag..."
-            />
-          </div>
-
-          {/* TABLE */}
-          <div className="bg-white rounded-3xl shadow-xl overflow-hidden border-2 border-slate-100">
-            <InventoryTable table={table} loading={loading} header={`Ketersediaan Alat`} />
-            
-            {/* PAGINATION */}
-            <div className="flex items-center justify-between py-5 px-6 bg-gradient-to-r from-slate-50 to-white border-t-2 border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                <div className="text-sm font-semibold text-slate-600">
-                  Menampilkan <span className="text-indigo-600 font-bold">{table.getRowModel().rows.length}</span> dari <span className="text-indigo-600 font-bold">{stats.total}</span> alat
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => table.previousPage()}
-                  disabled={!table.getCanPreviousPage()}
-                  className="px-5 py-2 rounded-xl bg-white border-2 border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-                >
-                  <i className="bi bi-chevron-left mr-1"></i>
-                  Prev
+        /* 2. VIEW KATALOG ALAT */
+        <div className="space-y-6 animate-in slide-in-from-bottom-4">
+          <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+             <div className="flex flex-col">
+                <button onClick={() => setSelectedGroup(null)} className="text-[10px] font-black uppercase text-indigo-500 mb-1 hover:text-slate-900 flex items-center gap-2">
+                    <i className="bi bi-arrow-left"></i> Kembali ke Katalog
                 </button>
-                <button
-                  onClick={() => table.nextPage()}
-                  disabled={!table.getCanNextPage()}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-                >
-                  Next
-                  <i className="bi bi-chevron-right ml-1"></i>
-                </button>
-              </div>
-            </div>
+                <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">
+                    List <span className="text-indigo-600">{selectedGroup}</span>
+                </h2>
+             </div>
+             <input type="text" value={globalFilter} onChange={e => setGlobalFilter(e.target.value)} className="w-full max-w-xs pl-6 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500 shadow-inner" placeholder="Cari alat..." />
+          </div>
+          <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
+            <InventoryTable table={table} loading={loading} header="Daftar Peralatan Tersedia" />
           </div>
         </div>
       )}
 
-      {/* TOMBOL MELAYANG KERANJANG */}
+      {/* FLOATING CART BUTTON */}
       {cart.length > 0 && (
-        <button 
-          onClick={() => setIsCartOpen(true)} 
-          className="fixed bottom-10 right-10 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-8 py-4 rounded-full shadow-2xl font-bold flex gap-3 items-center hover:scale-110 transition-all z-50 border-2 border-indigo-400"
-        >
+        <button onClick={() => { setIsCartOpen(true); setIsFormStep(false); }} className="fixed bottom-8 right-8 bg-slate-900 text-white px-8 py-5 rounded-[2rem] shadow-2xl font-black uppercase italic tracking-widest flex gap-4 items-center hover:scale-105 transition-all z-40 border-b-4 border-indigo-600 animate-in bounce-in">
           <div className="relative">
-            <i className="bi bi-cart-fill text-2xl"></i>
-            <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">
-              {cart.length}
-            </span>
+            <i className="bi bi-cart-check-fill text-2xl text-indigo-400"></i>
+            <span className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 rounded-full text-[10px] flex items-center justify-center border-2 border-slate-900 font-black">{cart.length}</span>
           </div>
           <span>{cart.length} Alat Dipilih</span>
         </button>
       )}
 
-      {/* MODAL SIDEBAR KERANJANG */}
+      {/* MODAL KERANJANG & FORM */}
       {isCartOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex justify-end" onClick={() => setIsCartOpen(false)}>
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-             {/* HEADER */}
-             <div className="flex justify-between items-center p-6 border-b-2 border-slate-100 bg-gradient-to-r from-indigo-50 to-white">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex justify-end animate-in fade-in duration-300" onClick={() => setIsCartOpen(false)}>
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-500" onClick={e => e.stopPropagation()}>
+             
+             <div className="p-8 border-b-2 border-slate-100 flex justify-between items-center bg-slate-50">
                <div>
-                 <h3 className="text-2xl font-black text-slate-900">Keranjang Pinjam</h3>
-                 <p className="text-xs text-slate-500 mt-1">{cart.length} item dipilih</p>
+                 <h3 className="text-2xl font-black text-slate-900 uppercase italic leading-none">{isFormStep ? "Data Tujuan" : "Isi Keranjang"}</h3>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 tracking-widest italic">Konfirmasi peminjaman alat</p>
                </div>
-               <button 
-                 onClick={() => setIsCartOpen(false)}
-                 className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center transition-colors"
-               >
-                 <i className="bi bi-x-lg text-xl text-slate-600"></i>
-               </button>
+               <button onClick={() => setIsCartOpen(false)} className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center border border-slate-100 transition-transform active:scale-90"><i className="bi bi-x-lg text-xl"></i></button>
              </div>
 
-             {/* LIST ITEMS */}
-             <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50">
-               {cart.map((item) => (
-                 <div key={item.id} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <p className="font-bold text-sm text-slate-900">{item.nama_alat}</p>
-                        <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                          <i className="bi bi-tag-fill"></i>
-                          {item.kode_tag || "KONSUMSI"}
-                        </p>
+             {!isFormStep ? (
+               /* STEP 1: REVIEW KERANJANG */
+               <>
+                 <div className="flex-1 overflow-y-auto p-8 space-y-4 bg-white">
+                    {cart.map((item) => (
+                      <div key={item.nama_alat} className="p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-100 shadow-sm space-y-4">
+                         <div className="flex justify-between items-start">
+                            <div>
+                                <p className="font-black text-xs text-slate-800 uppercase italic leading-none">{item.nama_alat}</p>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase italic flex items-center gap-1">
+                                    <i className="bi bi-geo-alt"></i> Asal: {item.letak}
+                                </p>
+                            </div>
+                            <button onClick={() => setCart(cart.filter(c => c.nama_alat !== item.nama_alat))} className="text-red-400 hover:text-red-600 transition-colors"><i className="bi bi-trash3-fill text-lg"></i></button>
+                         </div>
+                         {item.is_aset ? (
+  <div className="space-y-2">
+    <label className="text-[9px] font-black text-indigo-500 uppercase tracking-widest ml-1">
+      Pilih Unit / Kode Tag:
+    </label>
+    <div className="relative">
+      <select 
+  value={item.selected_tag} 
+  onChange={(e) => updateCartItem(item.nama_alat, 'selected_tag', e.target.value)}
+  className="..."
+>
+  <option value="">-- Pilih Unit --</option>
+  
+  {/* Gunakan nama variabel yang baru: kode_tag_list */}
+  {item.kode_tag_list && item.kode_tag_list.length > 0 ? (
+    item.kode_tag_list.map((tag) => (
+      <option key={tag} value={tag}>
+        {tag}
+      </option>
+    ))
+  ) : (
+    <option disabled>Tidak ada unit tersedia</option>
+  )}
+</select>
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+        <i className="bi bi-chevron-down"></i>
+      </div>
+    </div>
+    {item.kode_tag_list?.length === 0 && (
+       <p className="text-[8px] text-red-500 font-bold uppercase ml-1 italic">
+         Maaf, semua unit sedang dipinjam
+       </p>
+    )}
+  </div>
+                         ) : (
+                            <div className="flex items-center justify-between pt-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase italic">Jumlah Pinjam:</span>
+                                <input type="number" min="1" max={item.jumlah} className="w-16 p-2 bg-white border-2 border-slate-200 rounded-xl text-center font-black text-xs outline-none focus:border-indigo-500 shadow-inner" value={item.qty} onChange={(e) => updateCartItem(item.nama_alat, 'qty', parseInt(e.target.value))} />
+                            </div>
+                         )}
                       </div>
-                      <button 
-                        onClick={() => setCart(cart.filter(c => c.id !== item.id))} 
-                        className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center text-red-600 transition-colors"
-                      >
-                        <i className="bi bi-trash"></i>
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Jumlah Pinjam:</span>
-                      {!item.kode_tag ? (
-                         <input 
-                           type="number" 
-                           value={item.qty} 
-                           onChange={(e) => updateQty(item.id, parseInt(e.target.value), item.jumlah)} 
-                           className="w-16 border-2 border-slate-200 rounded-lg text-center font-bold py-1 text-sm focus:border-indigo-500 focus:outline-none" 
-                         />
-                      ) : (
-                        <div className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-bold">
-                          1 Unit
-                        </div>
-                      )}
-                    </div>
+                    ))}
                  </div>
-               ))}
-             </div>
+                 <div className="p-8 bg-slate-50 border-t-2 border-slate-100">
+                    <button onClick={() => setIsFormStep(true)} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all flex items-center justify-center gap-3 active:scale-95">
+                        <span>Lanjut Isi Form</span> <i className="bi bi-chevron-right"></i>
+                    </button>
+                 </div>
+               </>
+             ) : (
+               /* STEP 2: FORM SPESIFIK & KAMERA */
+               <div className="flex-1 p-8 space-y-6 bg-white flex flex-col overflow-y-auto">
+                  <button onClick={() => setIsFormStep(false)} className="text-indigo-600 text-[10px] font-black uppercase flex items-center gap-2 mb-2"><i className="bi bi-arrow-left"></i> Edit Daftar Alat</button>
+                  
+                  {/* RUANGAN SPESIFIK TUJUAN */}
+                  <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block italic leading-none">Ruangan Lab Penggunaan:</label>
+                      <select value={targetRoom} onChange={(e) => setTargetRoom(e.target.value)} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-bold focus:border-indigo-500 outline-none shadow-inner appearance-none">
+                          <option value="">-- Pilih Ruangan Spesifik --</option>
+                          {RUANGAN_SPESIFIK.map(room => <option key={room} value={room}>{room}</option>)}
+                      </select>
+                  </div>
 
-             {/* FOOTER CHECKOUT */}
-             <div className="p-6 border-t-2 border-slate-100 space-y-4 bg-white">
-               <div>
-                 <label className="block text-sm font-bold text-slate-700 mb-2">Tujuan Peminjaman</label>
-                 <textarea 
-                   value={tujuan} 
-                   onChange={(e) => setTujuan(e.target.value)} 
-                   placeholder="Contoh: Praktikum Sistem Embedded - Kelompok 4" 
-                   className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 text-sm focus:border-indigo-500 focus:outline-none resize-none" 
-                   rows={3}
-                 />
+                  {/* TUJUAN PENGGUNAAN */}
+                  <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block italic leading-none">Tujuan Peminjaman:</label>
+                      <textarea value={tujuan} onChange={e => setTujuan(e.target.value)} placeholder="Contoh: Praktikum Antena - Kelompok 4" className="w-full p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-100 text-sm font-bold focus:border-indigo-500 outline-none resize-none shadow-inner" rows={3} />
+                  </div>
+
+                  
+{/* FITUR KAMERA LANGSUNG */}
+                <div className="space-y-2">
+    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block italic">
+        Foto Kondisi Alat:
+    </label>
+
+    {!showCamera ? (
+        // Tampilan Preview atau Tombol Buka Kamera
+        <div 
+            onClick={() => setShowCamera(true)}
+            className="w-full h-52 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] overflow-hidden flex flex-col items-center justify-center cursor-pointer"
+        >
+            {imagePreview ? (
+                <img src={imagePreview} className="w-full h-full object-cover" />
+            ) : (
+                <div className="text-center">
+                    <i className="bi bi-camera-fill text-3xl text-indigo-500"></i>
+                    <p className="text-[9px] font-black text-slate-400 mt-1 uppercase">Klik untuk Aktifkan Kamera</p>
+                </div>
+            )}
+        </div>
+    ) : (
+        // Tampilan Live Kamera
+        <div className="relative w-full h-64 rounded-[2rem] overflow-hidden border-2 border-indigo-500 shadow-xl bg-black">
+            <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: "environment" }} // Gunakan kamera belakang
+                className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+                <button 
+                    onClick={() => setShowCamera(false)}
+                    className="bg-red-500 text-white p-3 rounded-full shadow-lg"
+                >
+                    <i className="bi bi-x-lg"></i>
+                </button>
+                <button 
+                    onClick={capture}
+                    className="bg-white text-slate-900 px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg border-b-4 border-slate-300"
+                >
+                    Jepret Foto
+                </button>
+            </div>
+        </div>
+    )}
+</div>
+
+                  <button 
+                    onClick={handleCheckout} 
+                    disabled={loading} 
+                    className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 disabled:bg-slate-300 mt-auto"
+                  >
+                    {loading ? "MEMPROSES..." : "Kirim Pengajuan"} <i className="bi bi-send-fill ml-2"></i>
+                  </button>
                </div>
-               <button 
-                 className="w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl font-black uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]" 
-                 onClick={handleCheckout}
-               >
-                 <i className="bi bi-send-fill mr-2"></i>
-                 Ajukan Peminjaman
-               </button>
-             </div>
+             )}
           </div>
         </div>
       )}

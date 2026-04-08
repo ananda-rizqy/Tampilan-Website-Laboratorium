@@ -188,7 +188,7 @@ const RiwayatRuangDosen: React.FC = () => {
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-full text-[9px] font-black uppercase">
                             <i className="bi bi-check-circle-fill"></i>
-                            Done
+                            SELESAI
                           </span>
                         )}
                       </td>

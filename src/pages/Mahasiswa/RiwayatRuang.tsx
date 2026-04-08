@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import axios from 'axios';
-import { SectionHeader } from '../../components/molecules/SectionHeader';
+/// <reference types="vite/client" />
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import api from "../../api/axios";
+import { SectionHeader } from "../../components/molecules/SectionHeader";
 
 interface RiwayatRuang {
   id: number;
@@ -9,267 +10,212 @@ interface RiwayatRuang {
   kondisi_masuk: string;
   kondisi_keluar: string;
   waktu_masuk: string;
-  waktu_keluar: string;
+  waktu_keluar: string | null;
   jam_mulai: string;
   jam_selesai: string;
+  foto_before: string | null;
+  foto_after: string | null;
 }
 
 const RiwayatRuangSaya: React.FC = () => {
   const [riwayat, setRiwayat] = useState<RiwayatRuang[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchRiwayat = async () => {
-      try {
-        const token = localStorage.getItem('auth_token');
-        const response = await axios.get('http://localhost:8000/api/mahasiswa/riwayat-ruang', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setRiwayat(response.data.data);
-      } catch (err) {
-        console.error("Gagal ambil data", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRiwayat();
-  }, []);
+  // PAKSA ke port 8000 agar tidak nyasar ke port 5173
+  const BACKEND_URL = "http://localhost:8000";
 
-  const handleRefresh = async () => {
-    setLoading(true);
+  const fetchRiwayat = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.get('http://localhost:8000/api/mahasiswa/riwayat-ruang', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setRiwayat(response.data.data);
+      setLoading(true);
+      const response = await api.get('/mahasiswa/riwayat-ruang');
+      setRiwayat(response.data.data || []);
     } catch (err) {
-      console.error("Gagal refresh data", err);
+      console.error("Gagal ambil data", err);
+      setRiwayat([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchRiwayat();
+  }, [fetchRiwayat]);
 
   // Statistik
   const stats = useMemo(() => {
     const total = riwayat.length;
-    const aktif = riwayat.filter(item => item.kondisi_keluar === 'Belum Check-out').length;
-    const selesai = riwayat.filter(item => item.kondisi_keluar !== 'Belum Check-out').length;
-    const bersih = riwayat.filter(item => 
-      item.kondisi_keluar !== 'Belum Check-out' && item.kondisi_keluar === 'Bersih'
-    ).length;
-    
-    return { total, aktif, selesai, bersih };
+    const aktif = riwayat.filter(item => !item.waktu_keluar).length;
+    const selesai = riwayat.filter(item => item.waktu_keluar).length;
+    return { total, aktif, selesai };
   }, [riwayat]);
 
+  // --- FUNGSI RENDER GAMBAR SAKTI (ANTI 404) ---
+  const renderImage = (path: string | null, label: string) => {
+    if (!path) return <i className="bi bi-camera text-slate-300"></i>;
+
+    // 1. Bersihkan karakter tak terlihat atau spasi
+    let cleanPath = path.trim();
+    
+    // 2. Hilangkan 'public/' jika ada di awal string
+    cleanPath = cleanPath.replace(/^public\//, '');
+
+  
+
+    return (
+      <img 
+        src={cleanPath} 
+        className="w-full h-full object-cover cursor-pointer" 
+        alt={label}
+        onClick={() => window.open(cleanPath, '_blank')}
+        onError={(e) => {
+          // Jika masih error, coba tanpa kata 'storage/' 
+          // (beberapa server Laravel kadang config symlink-nya berbeda)
+          const target = e.currentTarget;
+          if (!target.dataset.retried) {
+            target.dataset.retried = "true";
+            target.src = `${BACKEND_URL}/${cleanPath}`;
+          } else {
+            // Jika sudah dicoba dua kali tetap gagal, munculkan 404
+            target.style.display = 'none';
+            const parent = target.parentElement;
+            if (parent) {
+              parent.innerHTML = '<div class="flex items-center justify-center h-full w-full bg-red-50"><span class="text-[8px] text-red-500 font-black">404</span></div>';
+            }
+          }
+        }}
+      />
+    );
+  };
+
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-8 max-w-7xl mx-auto space-y-6">
       
-      {/* HEADER */}
       <SectionHeader
         title="Riwayat Penggunaan Ruang"
-        description="Pantau aktivitas penggunaan ruangan laboratorium Anda"
+        description="Monitor log check-in dan check-out ruangan laboratorium"
         rightElement={
           <button 
-            onClick={handleRefresh} 
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 hover:border-indigo-500 transition-all font-semibold text-sm"
+            onClick={fetchRiwayat} 
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 hover:border-indigo-500 transition-all font-semibold text-sm shadow-sm"
           >
             <i className="bi bi-arrow-clockwise"></i>
-            <span>Refresh</span>
+            <span>REFRESH</span>
           </button>
         }
       />
 
       {/* STATISTICS CARDS */}
-      {!loading && riwayat.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-5 rounded-[1.5rem] border-2 border-slate-100 flex items-center justify-between shadow-sm">
               <div>
-                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Total Riwayat</p>
-                <p className="text-2xl font-black text-blue-900 mt-1">{stats.total}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Total Penggunaan</p>
+                  <p className="text-2xl font-black text-slate-900">{stats.total}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                <i className="bi bi-door-open text-white text-xl"></i>
+              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+                  <i className="bi bi-journal-text text-2xl"></i>
               </div>
-            </div>
           </div>
-
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
+          <div className="bg-white p-5 rounded-[1.5rem] border-2 border-slate-100 flex items-center justify-between shadow-sm">
               <div>
-                <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Sedang Aktif</p>
-                <p className="text-2xl font-black text-amber-900 mt-1">{stats.aktif}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Sesi Berjalan</p>
+                  <p className="text-2xl font-black text-amber-500">{stats.aktif}</p>
               </div>
-              <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center">
-                <i className="bi bi-hourglass-split text-white text-xl"></i>
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500 shadow-sm">
+                  <i className="bi bi-door-open text-2xl"></i>
               </div>
-            </div>
           </div>
-
-          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
+          <div className="bg-white p-5 rounded-[1.5rem] border-2 border-slate-100 flex items-center justify-between shadow-sm">
               <div>
-                <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Selesai</p>
-                <p className="text-2xl font-black text-emerald-900 mt-1">{stats.selesai}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Selesai</p>
+                  <p className="text-2xl font-black text-emerald-500">{stats.selesai}</p>
               </div>
-              <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center">
-                <i className="bi bi-check-circle-fill text-white text-xl"></i>
+              <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 shadow-sm">
+                  <i className="bi bi-check-circle-fill text-2xl"></i>
               </div>
-            </div>
           </div>
+      </div>
 
-          <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-green-600 uppercase tracking-wider">Kondisi Bersih</p>
-                <p className="text-2xl font-black text-green-900 mt-1">{stats.bersih}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-                <i className="bi bi-stars text-white text-xl"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONTENT */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-32 space-y-4 bg-white rounded-3xl border-2 border-slate-100">
-           <div className="animate-spin h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full"></div>
-           <p className="text-slate-400 font-semibold text-sm">Memuat riwayat penggunaan ruang...</p>
-        </div>
-      ) : riwayat.length > 0 ? (
-        <div className="grid gap-4">
-          {riwayat.map((item) => {
-            const isActive = item.kondisi_keluar === 'Belum Check-out';
-            
-            return (
-              <div key={item.id} className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm transition-all hover:shadow-xl hover:border-indigo-300 group">
-                
-                <div className="flex flex-col lg:flex-row justify-between gap-6">
-                  {/* LEFT SECTION */}
-                  <div className="flex-1 space-y-4">
-                    {/* TITLE */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i className="bi bi-building text-indigo-600 text-lg"></i>
-                      </div>
-                      <div>
-                        <h2 className="font-black text-slate-900 text-lg group-hover:text-indigo-600 transition-colors">
-                          {item.laboratorium}
-                        </h2>
-                        <p className="text-sm text-slate-600 mt-1">
-                          <i className="bi bi-quote text-slate-400"></i> {item.keperluan}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* JADWAL RENCANA */}
-                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-2xl border border-indigo-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <i className="bi bi-calendar-range text-indigo-600"></i>
-                        <p className="text-xs font-bold text-indigo-900">Jadwal Rencana</p>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <i className="bi bi-clock text-indigo-600 text-xs"></i>
-                          <span className="font-bold text-indigo-700">{item.jam_mulai}</span>
-                        </div>
-                        <i className="bi bi-arrow-right text-indigo-400"></i>
-                        <div className="flex items-center gap-2">
-                          <i className="bi bi-clock-fill text-indigo-600 text-xs"></i>
-                          <span className="font-bold text-indigo-700">{item.jam_selesai}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CHECK-IN/OUT TIME */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <div className="flex items-center gap-2 mb-1">
-                          <i className="bi bi-box-arrow-in-right text-emerald-600"></i>
-                          <p className="text-xs font-bold text-slate-700">Check-In</p>
-                        </div>
-                        <p className="text-sm font-bold text-slate-900">{item.waktu_masuk}</p>
-                      </div>
+      {/* TABLE AREA */}
+      <div className="bg-white rounded-[2rem] shadow-xl border-2 border-slate-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-900 text-white border-b border-slate-800">
+                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-center w-16">ID</th>
+                <th className="p-5 text-[10px] font-black uppercase tracking-widest">Kondisi Ruang</th>
+                <th className="p-5 text-[10px] font-black uppercase tracking-widest">Laboratorium</th>
+                <th className="p-5 text-[10px] font-black uppercase tracking-widest">Waktu Check-In/Out</th>
+                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan={5} className="p-20 text-center text-slate-400 font-bold uppercase text-xs">Memuat Data...</td></tr>
+              ) : riwayat.length === 0 ? (
+                <tr><td colSpan={5} className="p-20 text-center text-slate-400 font-bold uppercase text-xs">Belum ada riwayat</td></tr>
+              ) : (
+                riwayat.map((item) => {
+                  const isActive = !item.waktu_keluar;
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-5 text-center font-black text-slate-400 text-xs">#{item.id}</td>
                       
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <div className="flex items-center gap-2 mb-1">
-                          <i className={`bi ${isActive ? 'bi-hourglass-split text-amber-600' : 'bi-box-arrow-left text-orange-600'}`}></i>
-                          <p className="text-xs font-bold text-slate-700">Check-Out</p>
-                        </div>
-                        <p className="text-sm font-bold text-slate-900">
-                          {isActive ? 'Belum selesai' : item.waktu_keluar}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* RIGHT SECTION */}
-                  <div className="flex flex-col justify-between items-end min-w-[180px] space-y-3">
-                    {/* STATUS BADGE */}
-                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm border-2 ${
-                      isActive 
-                        ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    }`}>
-                      {isActive ? (
-                        <>
-                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
-                          <span>Sedang Digunakan</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="bi bi-check-circle-fill"></i>
-                          <span>Selesai</span>
-                        </>
-                      )}
-                    </div>
-
-                    {/* KONDISI BADGES */}
-                    <div className="space-y-2 w-full">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-slate-500">Kondisi Masuk:</span>
-                        <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold ${
-                          item.kondisi_masuk === 'Bersih' 
-                            ? 'bg-green-50 text-green-700 border border-green-200' 
-                            : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}>
-                          {item.kondisi_masuk === 'Bersih' ? '✓' : '✗'}
-                          <span>{item.kondisi_masuk}</span>
-                        </div>
-                      </div>
-                      
-                      {!isActive && (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-slate-500">Kondisi Keluar:</span>
-                          <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold ${
-                            item.kondisi_keluar === 'Bersih' 
-                              ? 'bg-green-50 text-green-700 border border-green-200' 
-                              : 'bg-red-50 text-red-700 border border-red-200'
-                          }`}>
-                            {item.kondisi_keluar === 'Bersih' ? '✓' : '✗'}
-                            <span>{item.kondisi_keluar}</span>
+                      <td className="p-5">
+                        <div className="flex gap-2">
+                          <div className="text-center">
+                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Before</p>
+                            <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shadow-inner relative">
+                                {renderImage(item.foto_before, 'Before')}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">After</p>
+                            <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shadow-inner relative">
+                                {renderImage(item.foto_after, 'After')}
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      </td>
+
+                      <td className="p-5">
+                          <p className="text-[11px] font-black text-slate-900 uppercase leading-tight">{item.laboratorium}</p>
+                          <p className="text-[10px] font-bold text-indigo-500 italic mt-1 leading-none">"{item.keperluan}"</p>
+                      </td>
+
+                      <td className="p-5 whitespace-nowrap">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                                <i className="bi bi-box-arrow-in-right text-emerald-500 text-xs"></i>
+                                <span className="text-[11px] font-bold text-slate-600 leading-none">{item.waktu_masuk}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <i className={`bi ${isActive ? 'bi-hourglass-split text-amber-500' : 'bi-box-arrow-left text-orange-500'} text-xs`}></i>
+                                <span className={`text-[11px] font-bold leading-none ${isActive ? 'text-amber-500 italic' : 'text-slate-600'}`}>
+                                    {isActive ? 'Masih Digunakan' : item.waktu_keluar}
+                                </span>
+                            </div>
+                          </div>
+                      </td>
+
+                      <td className="p-5 text-center">
+                        {isActive ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black tracking-wider border border-amber-200">
+                                <i className="bi bi-record-fill animate-pulse"></i> ACTIVE
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black tracking-wider border border-emerald-200">
+                                <i className="bi bi-check-all"></i> SELESAI
+                            </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      ) : (
-        <div className="text-center py-32 bg-gradient-to-br from-slate-50 to-slate-100 rounded-3xl border-2 border-dashed border-slate-200">
-          <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="bi bi-door-closed text-4xl text-slate-400"></i>
-          </div>
-          <h3 className="text-xl font-black text-slate-400 mb-2">Belum Ada Riwayat</h3>
-          <p className="text-sm text-slate-500">Anda belum pernah menggunakan ruangan laboratorium</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

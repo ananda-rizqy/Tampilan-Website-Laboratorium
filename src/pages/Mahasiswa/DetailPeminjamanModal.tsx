@@ -73,7 +73,7 @@ const DetailPeminjamanModal: React.FC<ModalProps> = ({ isOpen, onClose, data }) 
                         <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Waktu Ambil</p>
                             <p className="font-black text-slate-800 italic uppercase text-sm leading-none mt-1">
-                                {data.tanggal_diambil ? new Date(data.tanggal_diambil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                {data.waktu_pinjam ? new Date(data.waktu_pinjam).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                             </p>
                         </div>
                         <div>
