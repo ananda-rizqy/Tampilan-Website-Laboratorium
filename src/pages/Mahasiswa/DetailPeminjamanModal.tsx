@@ -34,25 +34,40 @@ const DetailPeminjamanModal: React.FC<ModalProps> = ({ isOpen, onClose, data }) 
                         </span>
                     </div>
 
-                    {/* Daftar Alat (Sistem Keranjang) */}
+                    {/* Daftar Alat (Updated for Multi-Tag) */}
                     <div className="space-y-3">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alat yang digunakan:</p>
-                        <div className="max-h-40 overflow-y-auto pr-2 space-y-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <i className="bi bi-box-seam"></i> Item dalam Keranjang:
+                        </p>
+                        <div className="space-y-3">
                             {data.details?.map((det: any) => (
-                                <div key={det.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                                    <div>
-                                        <p className="font-black text-slate-800 uppercase italic text-xs leading-none">
-                                            {det.alat?.nama_alat}
-                                        </p>
-                                        <p className="text-[9px] text-indigo-500 font-bold mt-1 uppercase">
-                                            {det.alat?.kode_tag || 'KONSUMSI'}
-                                        </p>
-                                    </div>
-                                    <div className="bg-white px-3 py-1 rounded-lg border font-black text-indigo-600 text-xs">
-                                        x{det.jumlah_pinjam}
+                                <div key={det.id} className="bg-slate-50 p-4 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-black text-slate-800 uppercase italic text-xs leading-none">
+                                                {det.alat?.nama_alat}
+                                            </p>
+                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                {/* Menangani multiple kode tag jika ada */}
+                                                {det.kode_tag_list ? (
+                                                    det.kode_tag_list.map((tag: string) => (
+                                                        <span key={tag} className="text-[8px] bg-indigo-600 text-white px-2 py-0.5 rounded-md font-black tracking-tighter">
+                                                            {tag}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-[8px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-md font-black uppercase">
+                                                        {det.alat?.is_aset ? det.alat.kode_tag : 'Barang Konsumsi'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="bg-white w-10 h-10 flex items-center justify-center rounded-xl border-2 border-slate-100 font-black text-indigo-600 text-xs shadow-sm">
+                                            {det.jumlah_pinjam}x
+                                        </div>
                                     </div>
                                 </div>
-                            )) || <p className="text-xs italic text-slate-400 text-center">Data alat tidak tersedia</p>}
+                            )) || <p className="text-xs italic text-slate-400 text-center py-4">Tidak ada data alat.</p>}
                         </div>
                     </div>
 

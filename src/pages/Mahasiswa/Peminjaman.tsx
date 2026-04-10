@@ -24,16 +24,16 @@ interface Alat {
 }
 
 interface CartItem extends Alat {
-  selected_tag: string;
+  selected_tags: string[];
   qty: number;
 }
 
 // 1. DAFTAR KATALOG (Tampilan Awal - Untuk Filter Pencarian)
 const LAB_GROUPS = [
-  { name: "Laboratorium Barat", icon: "bi-activity", color: "from-blue-600 to-blue-800" },
-  { name: "Laboratorium Timur", icon: "bi-hdd-network", color: "from-orange-600 to-orange-800" },
-  { name: "Laboratorium MST", icon: "bi-cpu-fill", color: "from-purple-600 to-purple-800" },
-  { name: "Laboratorium Broadcast", icon: "bi-camera-reels", color: "from-pink-600 to-pink-800" }
+  { name: "Gedung Elektronika", icon: "bi-activity", color: "from-blue-600 to-blue-800" },
+  { name: "Gedung Telekomunikasi", icon: "bi-hdd-network", color: "from-orange-600 to-orange-800" },
+  { name: "Gedung UPT Bahasa", icon: "bi-cpu-fill", color: "from-purple-600 to-purple-800" },
+  { name: "Gedung Magister Terapan", icon: "bi-camera-reels", color: "from-pink-600 to-pink-800" }
 ];
 
 // 2. DAFTAR RUANGAN SPESIFIK (Lokasi Penggunaan - Bisa kamu tambah/kurang di sini)
@@ -49,7 +49,6 @@ const RUANGAN_SPESIFIK = [
 export default function PeminjamanPage() {
   const webcamRef = useRef<Webcam>(null);
   const [showCamera, setShowCamera] = useState(false);
-  // --- States ---
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [alatList, setAlatList] = useState<Alat[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -59,14 +58,11 @@ export default function PeminjamanPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isFormStep, setIsFormStep] = useState(false);
   
-  // Form States
   const [targetRoom, setTargetRoom] = useState(""); 
   const [tujuan, setTujuan] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  
 
   // --- Handlers ---
   const fetchData = useCallback(async (labName: string) => {
@@ -89,9 +85,8 @@ export default function PeminjamanPage() {
   const capture = useCallback(() => {
     const imageSrc = webcamRef.current?.getScreenshot();
     if (imageSrc) {
-      setImagePreview(imageSrc); // Untuk tampilan di UI
+      setImagePreview(imageSrc); 
       
-      // KONVERSI BASE64 KE BLOB
       const byteString = atob(imageSrc.split(',')[1]);
       const mimeString = imageSrc.split(',')[0].split(':')[1].split(';')[0];
       const ab = new ArrayBuffer(byteString.length);
@@ -108,13 +103,36 @@ export default function PeminjamanPage() {
     }
 }, [webcamRef]);
 
- 
-
   const addToCart = (alat: Alat) => {
     if (cart.find((item) => item.nama_alat === alat.nama_alat)) {
       return alert("Alat ini sudah ada di keranjang!");
     }
-    setCart([...cart, { ...alat, qty: 1, selected_tag: "" }]);
+    setCart([...cart, { ...alat, qty: 1, selected_tags: [""] 
+  } as CartItem]);
+  };
+
+  const addTagRow = (alatId: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === alatId) {
+        if (item.selected_tags.length >= item.jumlah) {
+          alert("Stok unit tidak mencukupi!");
+          return item;
+        }
+        return { ...item, qty: item.qty + 1, selected_tags: [...item.selected_tags, ""] };
+      }
+      return item;
+    }));
+  };
+
+  const removeTagRow = (alatId: number, index: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === alatId && item.selected_tags.length > 1) {
+        const newTags = [...item.selected_tags];
+        newTags.splice(index, 1);
+        return { ...item, qty: item.qty - 1, selected_tags: newTags };
+      }
+      return item;
+    }));
   };
 
   const updateCartItem = (nama: string, field: string, value: any) => {
@@ -128,7 +146,9 @@ export default function PeminjamanPage() {
     if (!tujuan.trim()) return alert("Harap isi tujuan penggunaan alat!");
     if (!imageFile) return alert("Harap ambil foto kondisi alat!");
     
-    const invalidItem = cart.find(item => item.is_aset && !item.selected_tag);
+    const invalidItem = cart.find(
+    item => item.is_aset && item.selected_tags.some(tag => !tag)
+    );
     if (invalidItem) return alert(`Harap pilih Kode Tag untuk ${invalidItem.nama_alat}`);
 
     const formData = new FormData();
@@ -137,8 +157,8 @@ export default function PeminjamanPage() {
     formData.append("foto_before", imageFile);
    const itemsPayload = cart.map(item => ({ 
     id: item.id, 
-    qty: item.qty, 
-    kode_tag_list: item.selected_tag 
+    qty: item.is_aset ? item.selected_tags.length : item.qty,
+    kode_tag_list: item.is_aset ? item.selected_tags : []
 }));
 formData.append("items", JSON.stringify(itemsPayload));
 
@@ -177,7 +197,7 @@ formData.append("items", JSON.stringify(itemsPayload));
     },
     { 
       header: "STOK", 
-      accessorKey: "jumlah", 
+      accessorKey: "tersedia", 
       cell: ({ row }) => <div className="px-3 py-1 rounded-lg font-black text-[10px] border w-fit bg-emerald-50 text-emerald-600 border-emerald-100 uppercase">{row.original.jumlah} unit</div>
     },
     {
@@ -274,71 +294,121 @@ formData.append("items", JSON.stringify(itemsPayload));
                <button onClick={() => setIsCartOpen(false)} className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center border border-slate-100 transition-transform active:scale-90"><i className="bi bi-x-lg text-xl"></i></button>
              </div>
 
-             {!isFormStep ? (
-               /* STEP 1: REVIEW KERANJANG */
-               <>
-                 <div className="flex-1 overflow-y-auto p-8 space-y-4 bg-white">
+            {!isFormStep ? (
+                /* STEP 1: REVIEW KERANJANG */
+                <>
+                  <div className="flex-1 overflow-y-auto p-8 space-y-4 bg-white">
                     {cart.map((item) => (
-                      <div key={item.nama_alat} className="p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-100 shadow-sm space-y-4">
-                         <div className="flex justify-between items-start">
-                            <div>
-                                <p className="font-black text-xs text-slate-800 uppercase italic leading-none">{item.nama_alat}</p>
-                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase italic flex items-center gap-1">
-                                    <i className="bi bi-geo-alt"></i> Asal: {item.letak}
-                                </p>
+                      <div key={item.id} className="p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-100 shadow-sm space-y-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-black text-xs text-slate-800 uppercase italic leading-none">{item.nama_alat}</p>
+                            <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase italic flex items-center gap-1">
+                              <i className="bi bi-geo-alt"></i> Asal: {item.letak}
+                            </p>
+                          </div>
+                          <button 
+                            onClick={() => setCart(cart.filter(c => c.id !== item.id))} 
+                            className="text-red-400 hover:text-red-600 transition-colors"
+                          >
+                            <i className="bi bi-trash3-fill text-lg"></i>
+                          </button>
+                        </div>
+
+                        {item.is_aset ? (
+                          /* MULTI-SELECT KODE TAG UNTUK ALAT BESAR */
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
+                              <label className="text-[9px] font-black text-indigo-500 uppercase tracking-widest ml-1">
+                                Pilih Unit / Kode Tag:
+                              </label>
+                              <button 
+                                type="button"
+                                onClick={() => addTagRow(item.id)}
+                                className="px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-full hover:bg-slate-900 transition-all flex items-center gap-1 shadow-md"
+                              >
+                                <i className="bi bi-plus-lg"></i> TAMBAH UNIT
+                              </button>
                             </div>
-                            <button onClick={() => setCart(cart.filter(c => c.nama_alat !== item.nama_alat))} className="text-red-400 hover:text-red-600 transition-colors"><i className="bi bi-trash3-fill text-lg"></i></button>
-                         </div>
-                         {item.is_aset ? (
-  <div className="space-y-2">
-    <label className="text-[9px] font-black text-indigo-500 uppercase tracking-widest ml-1">
-      Pilih Unit / Kode Tag:
-    </label>
-    <div className="relative">
-      <select 
-  value={item.selected_tag} 
-  onChange={(e) => updateCartItem(item.nama_alat, 'selected_tag', e.target.value)}
-  className="..."
->
-  <option value="">-- Pilih Unit --</option>
-  
-  {/* Gunakan nama variabel yang baru: kode_tag_list */}
-  {item.kode_tag_list && item.kode_tag_list.length > 0 ? (
-    item.kode_tag_list.map((tag) => (
-      <option key={tag} value={tag}>
-        {tag}
-      </option>
-    ))
-  ) : (
-    <option disabled>Tidak ada unit tersedia</option>
-  )}
-</select>
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-        <i className="bi bi-chevron-down"></i>
-      </div>
-    </div>
-    {item.kode_tag_list?.length === 0 && (
-       <p className="text-[8px] text-red-500 font-bold uppercase ml-1 italic">
-         Maaf, semua unit sedang dipinjam
-       </p>
-    )}
-  </div>
-                         ) : (
-                            <div className="flex items-center justify-between pt-2">
-                                <span className="text-[10px] font-black text-slate-400 uppercase italic">Jumlah Pinjam:</span>
-                                <input type="number" min="1" max={item.jumlah} className="w-16 p-2 bg-white border-2 border-slate-200 rounded-xl text-center font-black text-xs outline-none focus:border-indigo-500 shadow-inner" value={item.qty} onChange={(e) => updateCartItem(item.nama_alat, 'qty', parseInt(e.target.value))} />
+
+                            <div className="space-y-3">
+                              {item.selected_tags.map((tag, idx) => (
+                                <div key={idx} className="flex gap-2 items-center animate-in slide-in-from-left-2 duration-300">
+                                  <div className="relative flex-1">
+                                    <select 
+                                      required
+                                      value={tag} 
+                                      onChange={(e) => {
+                                        const newTags = [...item.selected_tags];
+                                        newTags[idx] = e.target.value;
+                                        updateCartItem(item.nama_alat, 'selected_tags', newTags);
+                                      }}
+                                      className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl text-[10px] font-bold outline-none focus:border-indigo-500 appearance-none shadow-sm"
+                                    >
+                                      <option value="">-- Pilih Unit --</option>
+                                      {item.kode_tag_list && item.kode_tag_list.length > 0 ? (
+                                        item.kode_tag_list.map((t) => (
+                                          <option 
+                                            key={t} 
+                                            value={t}
+                                            disabled={item.selected_tags.includes(t) && t !== tag}
+                                          >
+                                            {t} {item.selected_tags.includes(t) && t !== tag ? '(Terpilih)' : ''}
+                                          </option>
+                                        ))
+                                      ) : (
+                                        <option disabled>Tidak ada unit tersedia</option>
+                                      )}
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">
+                                      <i className="bi bi-chevron-down"></i>
+                                    </div>
+                                  </div>
+
+                                  {/* Tombol Hapus Baris Unit (Jika lebih dari 1) */}
+                                  {item.selected_tags.length > 1 && (
+                                    <button 
+                                      type="button"
+                                      onClick={() => removeTagRow(item.id, idx)}
+                                      className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-500 rounded-xl border border-red-100 hover:bg-red-100 transition-colors"
+                                    >
+                                      <i className="bi bi-trash"></i>
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
                             </div>
-                         )}
+                            <p className="text-[8px] text-slate-400 italic">Maksimal unit tersedia: {item.jumlah}</p>
+                          </div>
+                        ) : (
+                          /* INPUT QUANTITY UNTUK BARANG KONSUMSI */
+                          <div className="flex items-center justify-between pt-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase italic">Jumlah Pinjam:</span>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              max={item.jumlah} 
+                              className="w-20 p-2 bg-white border-2 border-slate-200 rounded-xl text-center font-black text-xs outline-none focus:border-indigo-500 shadow-inner" 
+                              value={item.qty} 
+                              onChange={(e) => updateCartItem(item.nama_alat, 'qty', parseInt(e.target.value))} 
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
-                 </div>
-                 <div className="p-8 bg-slate-50 border-t-2 border-slate-100">
-                    <button onClick={() => setIsFormStep(true)} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all flex items-center justify-center gap-3 active:scale-95">
-                        <span>Lanjut Isi Form</span> <i className="bi bi-chevron-right"></i>
+                  </div>
+                  
+                  <div className="p-8 bg-slate-50 border-t-2 border-slate-100">
+                    <button 
+                      onClick={() => setIsFormStep(true)} 
+                      className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all flex items-center justify-center gap-3 active:scale-95"
+                    >
+                      <span>Lanjut Isi Form</span> <i className="bi bi-chevron-right"></i>
                     </button>
-                 </div>
-               </>
-             ) : (
+                  </div>
+                </>
+            ) : (
+
                /* STEP 2: FORM SPESIFIK & KAMERA */
                <div className="flex-1 p-8 space-y-6 bg-white flex flex-col overflow-y-auto">
                   <button onClick={() => setIsFormStep(false)} className="text-indigo-600 text-[10px] font-black uppercase flex items-center gap-2 mb-2"><i className="bi bi-arrow-left"></i> Edit Daftar Alat</button>
