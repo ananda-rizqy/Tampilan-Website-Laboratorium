@@ -7,7 +7,7 @@ export interface AlatFormData {
   nama_alat: string;
   letak: string;
   kode_tag?: string;
-  jumlah: number;    
+  jumlah: number | "";    
   kondisi: string;
 }
 
@@ -24,7 +24,7 @@ export function AlatForm({ initialData, onSuccess }: AlatFormProps) {
     nama_alat: "",
     letak: "",
     kode_tag: "", 
-    jumlah: 1, 
+    jumlah: "",
     kondisi: "baik", 
   });
 
@@ -50,7 +50,7 @@ export function AlatForm({ initialData, onSuccess }: AlatFormProps) {
       setFormData({
         ...initialData,
         kode_tag: initialData.kode_tag || "",
-        jumlah: initialData.jumlah || 1,
+        jumlah: initialData.jumlah ?? "",
         kondisi: initialData.kondisi?.toLowerCase() || "baik"
       });
     }
@@ -68,7 +68,6 @@ export function AlatForm({ initialData, onSuccess }: AlatFormProps) {
     try {
       const payload = {
         ...formData,
-        // Pastikan kondisi tersimpan lowercase
         kondisi: formData.kode_tag ? formData.kondisi.toLowerCase() : "baik",
       };
 
@@ -147,9 +146,13 @@ export function AlatForm({ initialData, onSuccess }: AlatFormProps) {
               : 'bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500'
           }`}
           value={formData.jumlah}
-          onChange={(e) => setFormData({ ...formData, jumlah: parseInt(e.target.value) || 0 })}
-          disabled={isQuantityDisabled} // Input mati jika ada Kode Tag
-          required
+          onChange={(e) => {
+            const value = e.target.value;
+            setFormData({ 
+        ...formData, 
+        jumlah: value === "" ? "" : parseInt(value)
+        });
+}}
         />
       </div>
 
