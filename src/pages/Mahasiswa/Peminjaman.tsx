@@ -53,16 +53,18 @@ export default function PeminjamanPage() {
   const [alatList, setAlatList] = useState<Alat[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [globalFilter, setGlobalFilter] = useState("");
-  
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isFormStep, setIsFormStep] = useState(false);
-  
   const [targetRoom, setTargetRoom] = useState(""); 
   const [tujuan, setTujuan] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [captchaCode, setCaptchaCode] = React.useState("");
+  const [userCaptchaInput, setUserCaptchaInput] = React.useState("");
+  const [startTime, setStartTime] = useState<string>("");
+  const [endTime, setEndTime] = useState<string>("");
 
   // --- Handlers ---
   const fetchData = useCallback(async (labName: string) => {
@@ -141,11 +143,43 @@ export default function PeminjamanPage() {
     ));
   };
 
+  const generateCaptcha = useCallback(() => {
+    const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; 
+    let result = "";
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setCaptchaCode(result);
+    setUserCaptchaInput(""); 
+  }, []);
+
+  useEffect(() => {
+    if (isFormStep) {
+      generateCaptcha();
+    }
+  }, [isFormStep, generateCaptcha]);
+
   const handleCheckout = async () => {
+    const isBooking = startTime !== "";
     if (!targetRoom) return alert("Harap pilih ruangan laboratorium tujuan!");
     if (!tujuan.trim()) return alert("Harap isi tujuan penggunaan alat!");
-    if (!imageFile) return alert("Harap ambil foto kondisi alat!");
+
+    // FOTO HANYA WAJIB JIKA BUKAN BOOKING (Pinjam Langsung)
+    if (!isBooking && !imageFile) {
+        return alert("Harap ambil foto kondisi alat untuk peminjaman langsung!");
+    }
+
+    if (userCaptchaInput !== captchaCode) {
+      alert("Kode Captcha salah! Harap periksa kembali.");
+      generateCaptcha(); 
+      return;
+    }
     
+    // Validasi Logika Waktu (Jika diisi)
+    if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+        return alert("Jam selesai harus lebih besar dari jam mulai!");
+    }
+
     const invalidItem = cart.find(
     item => item.is_aset && item.selected_tags.some(tag => !tag)
     );
@@ -154,24 +188,28 @@ export default function PeminjamanPage() {
     const formData = new FormData();
     formData.append("ruangan_lab", targetRoom); 
     formData.append("tujuan", tujuan);
-    formData.append("foto_before", imageFile);
-   const itemsPayload = cart.map(item => ({ 
+    if (imageFile) 
+      formData.append("foto_before", imageFile);
+    formData.append("waktu_mulai", startTime); // Kosong = Pinjam Sekarang 
+    formData.append("waktu_selesai", endTime);
+
+    const itemsPayload = cart.map(item => ({ 
     id: item.id, 
     qty: item.is_aset ? item.selected_tags.length : item.qty,
     kode_tag_list: item.is_aset ? item.selected_tags : []
 }));
-formData.append("items", JSON.stringify(itemsPayload));
+    formData.append("items", JSON.stringify(itemsPayload));
 
     try {
       setLoading(true);
       await api.post("/peminjaman/ajukan", formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      alert("✅ Pengajuan berhasil dikirim!");
+      alert("Pengajuan berhasil dikirim!");
       setCart([]); setTujuan(""); setTargetRoom(""); setImagePreview(null); setImageFile(null);
       setIsCartOpen(false);
     } catch (err) {
-      alert("❌ Gagal memproses peminjaman.");
+      alert("Gagal memproses peminjaman.");
       } finally {
       setLoading(false);
     }
@@ -409,9 +447,11 @@ formData.append("items", JSON.stringify(itemsPayload));
                 </>
             ) : (
 
-               /* STEP 2: FORM SPESIFIK & KAMERA */
-               <div className="flex-1 p-8 space-y-6 bg-white flex flex-col overflow-y-auto">
-                  <button onClick={() => setIsFormStep(false)} className="text-indigo-600 text-[10px] font-black uppercase flex items-center gap-2 mb-2"><i className="bi bi-arrow-left"></i> Edit Daftar Alat</button>
+               /* STEP 2: FORM SPESIFIK & KAMERA & CAPTCHA */
+              <div className="flex-1 p-8 space-y-6 bg-white flex flex-col overflow-y-auto">
+                  <button onClick={() => setIsFormStep(false)} className="text-indigo-600 text-[10px] font-black uppercase flex items-center gap-2 mb-2">
+                      <i className="bi bi-arrow-left"></i> Edit Daftar Alat
+                  </button>
                   
                   {/* RUANGAN SPESIFIK TUJUAN */}
                   <div className="space-y-2">
@@ -428,64 +468,157 @@ formData.append("items", JSON.stringify(itemsPayload));
                       <textarea value={tujuan} onChange={e => setTujuan(e.target.value)} placeholder="Contoh: Praktikum Antena - Kelompok 4" className="w-full p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-100 text-sm font-bold focus:border-indigo-500 outline-none resize-none shadow-inner" rows={3} />
                   </div>
 
-                  
-{/* FITUR KAMERA LANGSUNG */}
-                <div className="space-y-2">
-    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block italic">
-        Foto Kondisi Alat:
-    </label>
+                  {/* --- SECTION BOOKING (WAKTU) --- */}
+                  <div className="p-5 bg-indigo-50/50 rounded-[2rem] border-2 border-indigo-100/50 space-y-3">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 block italic leading-none">
+                          Jadwal Pemesanan <span className="text-slate-400">(Opsional)</span>:
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                              <p className="text-[8px] font-bold text-slate-400 uppercase ml-1">Mulai / Booking:</p>
+                              <input 
+                                  type="datetime-local" 
+                                  value={startTime} 
+                                  onChange={(e) => setStartTime(e.target.value)}
+                                  className="w-full p-3 bg-white border-2 border-slate-100 rounded-xl text-[10px] font-bold outline-none focus:border-indigo-500 shadow-sm"
+                              />
+                          </div>
+                          <div className="space-y-1">
+                              <p className="text-[8px] font-bold text-slate-400 uppercase ml-1">Estimasi Selesai:</p>
+                              <input 
+                                  type="datetime-local" 
+                                  value={endTime} 
+                                  onChange={(e) => setEndTime(e.target.value)}
+                                  className="w-full p-3 bg-white border-2 border-slate-100 rounded-xl text-[10px] font-bold outline-none focus:border-indigo-500 shadow-sm"
+                              />
+                          </div>
+                      </div>
+                      {!startTime && (
+                          <p className="text-[8px] text-amber-600 font-bold italic ml-1">
+                              * Kosongkan jika ingin meminjam langsung (sekarang).
+                          </p>
+                      )}
+                  </div>
 
-    {!showCamera ? (
-        // Tampilan Preview atau Tombol Buka Kamera
-        <div 
-            onClick={() => setShowCamera(true)}
-            className="w-full h-52 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] overflow-hidden flex flex-col items-center justify-center cursor-pointer"
-        >
-            {imagePreview ? (
-                <img src={imagePreview} className="w-full h-full object-cover" />
-            ) : (
-                <div className="text-center">
-                    <i className="bi bi-camera-fill text-3xl text-indigo-500"></i>
-                    <p className="text-[9px] font-black text-slate-400 mt-1 uppercase">Klik untuk Aktifkan Kamera</p>
-                </div>
-            )}
-        </div>
-    ) : (
-        // Tampilan Live Kamera
-        <div className="relative w-full h-64 rounded-[2rem] overflow-hidden border-2 border-indigo-500 shadow-xl bg-black">
-            <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: "environment" }} // Gunakan kamera belakang
-                className="w-full h-full object-cover"
-            />
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
-                <button 
-                    onClick={() => setShowCamera(false)}
-                    className="bg-red-500 text-white p-3 rounded-full shadow-lg"
-                >
-                    <i className="bi bi-x-lg"></i>
-                </button>
-                <button 
-                    onClick={capture}
-                    className="bg-white text-slate-900 px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg border-b-4 border-slate-300"
-                >
-                    Jepret Foto
-                </button>
-            </div>
-        </div>
-    )}
-</div>
+                  {/* FITUR KAMERA DINAMIS */}
+                  <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block italic leading-none">
+                          Foto Kondisi Alat:
+                      </label>
 
+                      {!startTime ? (
+                          // TAMPILKAN KAMERA JIKA PEMINJAMAN LANGSUNG (StartTime Kosong)
+                          !showCamera ? (
+                              <div 
+                                  onClick={() => setShowCamera(true)} 
+                                  className={`w-full h-52 border-2 border-dashed rounded-[2rem] overflow-hidden flex flex-col items-center justify-center cursor-pointer transition-all ${imagePreview ? 'border-indigo-500 bg-white' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-indigo-300'}`}
+                              >
+                                  {imagePreview ? (
+                                      <div className="relative w-full h-full group">
+                                          <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
+                                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all">
+                                              <i className="bi bi-camera-fill text-white text-2xl mb-1"></i>
+                                              <p className="text-white font-black uppercase text-[10px] tracking-widest">Klik Ganti Foto</p>
+                                          </div>
+                                      </div>
+                                  ) : (
+                                      <div className="text-center animate-in fade-in duration-500">
+                                          <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-600 shadow-sm">
+                                              <i className="bi bi-camera-fill text-2xl"></i>
+                                          </div>
+                                          <p className="text-[10px] font-black text-slate-500 mt-1 uppercase tracking-tighter">Ambil Foto Kondisi Alat</p>
+                                          <p className="text-[8px] font-bold text-slate-400 uppercase italic mt-1">* Wajib untuk pinjam langsung</p>
+                                      </div>
+                                  )}
+                              </div>
+                          ) : (
+                              <div className="relative w-full h-64 rounded-[2rem] overflow-hidden border-2 border-indigo-500 shadow-xl bg-black animate-in zoom-in-95 duration-300">
+                                  <Webcam 
+                                      audio={false} 
+                                      ref={webcamRef} 
+                                      screenshotFormat="image/jpeg" 
+                                      videoConstraints={{ facingMode: "environment" }} 
+                                      className="w-full h-full object-cover" 
+                                  />
+                                  <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+                                      <button 
+                                          type="button"
+                                          onClick={() => setShowCamera(false)} 
+                                          className="bg-slate-900/80 backdrop-blur-md text-white w-12 h-12 rounded-full shadow-lg hover:bg-red-500 transition-all flex items-center justify-center"
+                                      >
+                                          <i className="bi bi-x-lg text-lg"></i>
+                                      </button>
+                                      <button 
+                                          type="button"
+                                          onClick={capture} 
+                                          className="bg-white text-slate-900 px-8 py-3 rounded-full font-black text-[11px] uppercase shadow-lg border-b-4 border-slate-300 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2"
+                                      >
+                                          <i className="bi bi-record-circle text-red-500 text-lg"></i> Jepret Foto
+                                      </button>
+                                  </div>
+                              </div>
+                          )
+                      ) : (
+                          // TAMPILKAN PESAN JIKA BOOKING (StartTime Terisi)
+                          <div className="w-full py-8 px-6 border-2 border-dashed border-indigo-100 bg-indigo-50/30 rounded-[2rem] flex flex-col items-center justify-center text-center animate-in fade-in duration-500">
+                              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-400 mb-3 shadow-sm">
+                                  <i className="bi bi-camera-video-off-fill text-xl"></i>
+                              </div>
+                              <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-tight">
+                                  Foto Tidak Diperlukan
+                              </p>
+                              <p className="text-[9px] font-bold text-slate-400 mt-2 italic max-w-[200px]">
+                                  Anda melakukan pemesanan jadwal. Foto kondisi alat diambil saat Anda tiba di laboratorium.
+                              </p>
+                          </div>
+                      )}
+                  </div>
+
+                  {/* --- FITUR CAPTCHA*/}
+                  <div className="space-y-3 pt-4 border-t-2 border-dashed border-slate-100">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block italic leading-none">
+                          Verifikasi Keamanan:
+                      </label>
+                      <div className="flex gap-3">
+                          {/* Box Kode Captcha */}
+                          <div className="relative overflow-hidden bg-slate-900 rounded-2xl flex items-center justify-center px-4 py-3 border-2 border-slate-800 shadow-md select-none group min-w-[120px]">
+                              {/* Garis Dekoratif (Obfuscation) */}
+                              <div className="absolute inset-0 opacity-20 pointer-events-none">
+                                  <div className="absolute top-2 left-0 w-full h-[1px] bg-white rotate-12"></div>
+                                  <div className="absolute bottom-4 left-0 w-full h-[1px] bg-white -rotate-12"></div>
+                              </div>
+                              
+                              <span className="text-white font-mono font-black tracking-[0.3em] italic text-lg relative z-10">
+                                  {captchaCode}
+                              </span>
+                              
+                              <button type="button" onClick={generateCaptcha} className="ml-3 text-indigo-400 hover:text-white transition-colors relative z-10">
+                                  <i className="bi bi-arrow-clockwise text-lg"></i>
+                              </button>
+                          </div>
+
+                          {/* Input Kode dari Mahasiswa */}
+                          <input 
+                              type="text"
+                              placeholder="Kode..."
+                              maxLength={6}
+                              value={userCaptchaInput}
+                              onChange={(e) => setUserCaptchaInput(e.target.value.toUpperCase())}
+                              className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-black uppercase outline-none focus:border-indigo-500 shadow-inner tracking-widest"
+                          />
+                      </div>
+                      <p className="text-[8px] text-slate-400 font-bold italic">* Masukkan 6 digit kode keamanan di atas.</p>
+                  </div>
+
+                  {/* TOMBOL FINAL */}
                   <button 
-                    onClick={handleCheckout} 
-                    disabled={loading} 
-                    className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 disabled:bg-slate-300 mt-auto"
+                      onClick={handleCheckout} 
+                      disabled={loading} 
+                      className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 disabled:bg-slate-300 mt-4"
                   >
-                    {loading ? "MEMPROSES..." : "Kirim Pengajuan"} <i className="bi bi-send-fill ml-2"></i>
+                      {loading ? "MEMPROSES..." : "Kirim Pengajuan"} <i className="bi bi-send-fill ml-2"></i>
                   </button>
-               </div>
+              </div>
              )}
           </div>
         </div>
