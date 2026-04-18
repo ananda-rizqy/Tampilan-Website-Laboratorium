@@ -20,8 +20,6 @@ interface RiwayatRuang {
 const RiwayatRuangSaya: React.FC = () => {
   const [riwayat, setRiwayat] = useState<RiwayatRuang[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // PAKSA ke port 8000 agar tidak nyasar ke port 5173
   const BACKEND_URL = "http://localhost:8000";
 
   const fetchRiwayat = useCallback(async () => {
@@ -49,17 +47,12 @@ const RiwayatRuangSaya: React.FC = () => {
     return { total, aktif, selesai };
   }, [riwayat]);
 
-  // --- FUNGSI RENDER GAMBAR SAKTI (ANTI 404) ---
   const renderImage = (path: string | null, label: string) => {
     if (!path) return <i className="bi bi-camera text-slate-300"></i>;
 
-    // 1. Bersihkan karakter tak terlihat atau spasi
     let cleanPath = path.trim();
-    
-    // 2. Hilangkan 'public/' jika ada di awal string
-    cleanPath = cleanPath.replace(/^public\//, '');
 
-  
+    cleanPath = cleanPath.replace(/^public\//, '');
 
     return (
       <img 
@@ -68,14 +61,11 @@ const RiwayatRuangSaya: React.FC = () => {
         alt={label}
         onClick={() => window.open(cleanPath, '_blank')}
         onError={(e) => {
-          // Jika masih error, coba tanpa kata 'storage/' 
-          // (beberapa server Laravel kadang config symlink-nya berbeda)
           const target = e.currentTarget;
           if (!target.dataset.retried) {
             target.dataset.retried = "true";
             target.src = `${BACKEND_URL}/${cleanPath}`;
           } else {
-            // Jika sudah dicoba dua kali tetap gagal, munculkan 404
             target.style.display = 'none';
             const parent = target.parentElement;
             if (parent) {
@@ -104,36 +94,41 @@ const RiwayatRuangSaya: React.FC = () => {
         }
       />
 
-      {/* STATISTICS CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-[1.5rem] border-2 border-slate-100 flex items-center justify-between shadow-sm">
-              <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Total Penggunaan</p>
-                  <p className="text-2xl font-black text-slate-900">{stats.total}</p>
-              </div>
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
-                  <i className="bi bi-journal-text text-2xl"></i>
-              </div>
-          </div>
-          <div className="bg-white p-5 rounded-[1.5rem] border-2 border-slate-100 flex items-center justify-between shadow-sm">
-              <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Sesi Berjalan</p>
-                  <p className="text-2xl font-black text-amber-500">{stats.aktif}</p>
-              </div>
-              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500 shadow-sm">
-                  <i className="bi bi-door-open text-2xl"></i>
-              </div>
-          </div>
-          <div className="bg-white p-5 rounded-[1.5rem] border-2 border-slate-100 flex items-center justify-between shadow-sm">
-              <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Selesai</p>
-                  <p className="text-2xl font-black text-emerald-500">{stats.selesai}</p>
-              </div>
-              <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 shadow-sm">
-                  <i className="bi bi-check-circle-fill text-2xl"></i>
-              </div>
-          </div>
-      </div>
+    {/* STATISTICS CARDS */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Total Penggunaan*/}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm">
+            <div>
+                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mb-2 italic">Total Penggunaan</p>
+                <p className="text-3xl font-black text-blue-900">{stats.total}</p>
+            </div>
+            <div className="w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                <i className="bi bi-journal-check text-2xl"></i>
+            </div>
+        </div>
+
+        {/* Sesi Berjalan*/}
+        <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm">
+            <div>
+                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest leading-none mb-2 italic">Sesi Aktif</p>
+                <p className="text-3xl font-black text-amber-900">{stats.aktif}</p>
+            </div>
+            <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-amber-200">
+                <i className="bi bi-door-open-fill text-2xl"></i>
+            </div>
+        </div>
+
+        {/* Selesai*/}
+        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm">
+            <div>
+                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-2 italic">Selesai</p>
+                <p className="text-3xl font-black text-emerald-900">{stats.selesai}</p>
+            </div>
+            <div className="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-200">
+                <i className="bi bi-check-circle-fill text-2xl"></i>
+            </div>
+        </div>
+    </div>
 
       {/* TABLE AREA */}
       <div className="bg-white rounded-[2rem] shadow-xl border-2 border-slate-100 overflow-hidden">

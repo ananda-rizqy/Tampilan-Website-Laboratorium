@@ -206,117 +206,124 @@ export default function DaftarAlat() {
   }, [alatList]);
 
   return (
-    <InventoryTemplate
-      header={
-        <div className="space-y-6">
-          <SectionHeader
-            title="Inventory Peralatan Laboratorium"
-            description="Kelola dan pantau aset peralatan laboratorium secara terpusat"
-            rightElement={
-              isStaff && (
-                <Button
-                  onClick={() => {
-                    setEditData(null);
-                    setIsFormOpen(!isFormOpen);
-                  }}
-                  className="shadow-lg shadow-blue-200"
-                >
-                  <i className="bi bi-plus-circle mr-2"></i>
-                  {isFormOpen ? "Tutup Form" : "Tambah Item"}
-                </Button>
-              )
-            }
+  <InventoryTemplate
+    header={
+      <div className="space-y-6">
+        <SectionHeader
+          title={isFormOpen ? (editData ? "Update Inventori" : "Tambah Item Baru") : "Inventory Peralatan Laboratorium"}
+          description={isFormOpen ? "Lengkapi detail informasi peralatan di bawah ini" : "Kelola dan pantau aset peralatan laboratorium secara terpusat"}
+          rightElement={
+            isStaff && (
+              <Button
+                onClick={() => {
+                  setEditData(null);
+                  setIsFormOpen(!isFormOpen);
+                }}
+                className={`shadow-lg transition-all ${isFormOpen ? 'bg-slate-800' : 'shadow-blue-200'}`}
+              >
+                <i className={`bi ${isFormOpen ? 'bi-arrow-left-circle' : 'bi-plus-circle'} mr-2`}></i>
+                {isFormOpen ? "Kembali ke Data Inventori" : "Tambah Item"}
+              </Button>
+            )
+          }
+        />
+
+        {/* STATISTIK & SEARCH HANYA MUNCUL JIKA FORM TERTUTUP */}
+        {!isFormOpen && (
+          <>
+            {/* STATISTICS CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in duration-300">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Total Item</p>
+                    <p className="text-2xl font-black text-blue-900 mt-1">{stats.total}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                    <i className="bi bi-box-seam text-white text-xl"></i>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Kondisi Baik</p>
+                    <p className="text-2xl font-black text-emerald-900 mt-1">{stats.baik}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center">
+                    <i className="bi bi-check-circle-fill text-white text-xl"></i>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-red-600 uppercase tracking-wider">Kondisi Rusak</p>
+                    <p className="text-2xl font-black text-red-900 mt-1">{stats.rusak}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
+                    <i className="bi bi-tools text-white text-xl"></i>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-purple-600 uppercase tracking-wider">Total Unit</p>
+                    <p className="text-2xl font-black text-purple-900 mt-1">{stats.totalUnit}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
+                    <i className="bi bi-stack text-white text-xl"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SEARCH BAR */}
+            <div className="relative max-w-md animate-in fade-in duration-300">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-4">
+                <i className="bi bi-search text-slate-400 text-lg"></i>
+              </span>
+              <input
+                type="text"
+                value={globalFilter ?? ""}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="block w-full rounded-2xl border-2 border-slate-200 bg-white py-3.5 pl-12 pr-4 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
+                placeholder="Cari alat, lokasi, atau kode tag..."
+              />
+            </div>
+          </>
+        )}
+      </div>
+    }
+    
+    // BAGIAN FORM
+    form={
+      isFormOpen && isStaff && (
+        <div className="bg-gradient-to-br from-white to-blue-50 p-8 rounded-[2.5rem] shadow-xl border-2 border-blue-100 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <i className={`bi ${editData ? 'bi-pencil-square' : 'bi-plus-circle'} text-white text-lg`}></i>
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tight">
+              {editData ? "Update Data Inventori" : "Registrasi Item Baru"}
+            </h3>
+          </div>
+          <AlatForm
+            initialData={editData ? { ...editData, kode_tag: editData.kode_tag ?? "" } : undefined}
+            onSuccess={handleSuccess}
           />
-
-          {/* STATISTICS CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Total Item</p>
-                  <p className="text-2xl font-black text-blue-900 mt-1">{stats.total}</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                  <i className="bi bi-box-seam text-white text-xl"></i>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Kondisi Baik</p>
-                  <p className="text-2xl font-black text-emerald-900 mt-1">{stats.baik}</p>
-                </div>
-                <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center">
-                  <i className="bi bi-check-circle-fill text-white text-xl"></i>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-red-600 uppercase tracking-wider">Kondisi Rusak</p>
-                  <p className="text-2xl font-black text-red-900 mt-1">{stats.rusak}</p>
-                </div>
-                <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
-                  <i className="bi bi-tools text-white text-xl"></i>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-purple-600 uppercase tracking-wider">Total Unit</p>
-                  <p className="text-2xl font-black text-purple-900 mt-1">{stats.totalUnit}</p>
-                </div>
-                <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
-                  <i className="bi bi-stack text-white text-xl"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* SEARCH BAR */}
-          <div className="relative max-w-md">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-4">
-               <i className="bi bi-search text-slate-400 text-lg"></i>
-            </span>
-            <input
-              type="text"
-              value={globalFilter ?? ""}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="block w-full rounded-2xl border-2 border-slate-200 bg-white py-3.5 pl-12 pr-4 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
-              placeholder="Cari alat, lokasi, atau kode tag..."
-            />
-          </div>
         </div>
-      }
-      form={
-        isFormOpen && isStaff && (
-          <div className="bg-gradient-to-br from-white to-blue-50 p-8 rounded-3xl shadow-xl border-2 border-blue-100 mb-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                <i className={`bi ${editData ? 'bi-pencil-square' : 'bi-plus-circle'} text-white text-lg`}></i>
-              </div>
-              <h3 className="text-2xl font-black text-slate-900">
-                {editData ? "Update Data Inventori" : "Registrasi Item Baru"}
-              </h3>
-            </div>
-            <AlatForm
-                initialData={
-                  editData
-                    ? { ...editData, kode_tag: editData.kode_tag ?? "" }
-                    : undefined
-                }
-                onSuccess={handleSuccess}
-            />
-          </div>
-        )
-      }
-      table={
-        <div className="space-y-4">
+      )
+    }
+
+    // BAGIAN TABEL
+    table={
+      !isFormOpen && (
+        <div className="space-y-4 animate-in fade-in duration-500">
           <InventoryTable
             table={table}
             loading={loading}
@@ -350,7 +357,8 @@ export default function DaftarAlat() {
             </div>
           </div>
         </div>
-      }
-    />
-  );
+      )
+    }
+  />
+)
 }

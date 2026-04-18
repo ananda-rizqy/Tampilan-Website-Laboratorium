@@ -9,104 +9,159 @@ interface ModalProps {
 const DetailPeminjamanModal: React.FC<ModalProps> = ({ isOpen, onClose, data }) => {
     if (!isOpen || !data) return null;
 
+    const getImageUrl = (path: string | null): string => {
+        if (!path) return 'https://placehold.co/400x300?text=No+Image';
+        if (path.startsWith('http')) return path;
+        
+        let cleanPath = path.replace(/^public\//, '').replace(/^storage\//, '').replace(/^\//, '');
+        return `http://localhost:8000/storage/${cleanPath}`;
+    };
+
+    const formatDateTime = (dateString: string | null) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('id-ID', { 
+            day: '2-digit', 
+            month: 'short', 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false
+        }).replace(',', ', ');
+    };
+
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-            <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full overflow-hidden transform transition-all border border-slate-100">
-                {/* Header */}
-                <div className="bg-slate-900 p-6 flex justify-between items-center text-white">
-                    <div>
-                        <h2 className="text-xl font-black uppercase italic tracking-tighter leading-none">Detail Pinjam</h2>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">ID: #{data.id}</p>
+        <div 
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]"
+            onClick={onClose}
+        >
+            <div 
+                className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* HEADER */}
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 flex items-start justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center">
+                            <i className="bi bi-clock-history text-white text-2xl"></i>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black text-white uppercase tracking-tight">
+                                Log Peminjaman
+                            </h2>
+                            <p className="text-sm text-slate-300 font-semibold mt-0.5">
+                                ID #{data.id}
+                            </p>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 p-2 rounded-full transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                    <button 
+                        onClick={onClose}
+                        className="text-slate-300 hover:text-white transition-colors"
+                    >
+                        <i className="bi bi-x-lg text-2xl"></i>
                     </button>
                 </div>
 
-                {/* Body */}
-                <div className="p-8 space-y-6">
-                    {/* Status Badge */}
-                    <div className="flex justify-center">
-                        <span className="bg-indigo-100 text-indigo-600 px-6 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-200">
-                            {data.status}
-                        </span>
-                    </div>
-
-                    {/* Daftar Alat (Updated for Multi-Tag) */}
-                    <div className="space-y-3">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <i className="bi bi-box-seam"></i> Item dalam Keranjang:
-                        </p>
-                        <div className="space-y-3">
-                            {data.details?.map((det: any) => (
-                                <div key={det.id} className="bg-slate-50 p-4 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="font-black text-slate-800 uppercase italic text-xs leading-none">
-                                                {det.alat?.nama_alat}
-                                            </p>
-                                            <div className="mt-2 flex flex-wrap gap-1">
-                                                {/* Menangani multiple kode tag jika ada */}
-                                                {det.kode_tag_list ? (
-                                                    det.kode_tag_list.map((tag: string) => (
-                                                        <span key={tag} className="text-[8px] bg-indigo-600 text-white px-2 py-0.5 rounded-md font-black tracking-tighter">
-                                                            {tag}
-                                                        </span>
-                                                    ))
-                                                ) : (
-                                                    <span className="text-[8px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-md font-black uppercase">
-                                                        {det.alat?.is_aset ? det.alat.kode_tag : 'Barang Konsumsi'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="bg-white w-10 h-10 flex items-center justify-center rounded-xl border-2 border-slate-100 font-black text-indigo-600 text-xs shadow-sm">
-                                            {det.jumlah_pinjam}x
-                                        </div>
-                                    </div>
-                                </div>
-                            )) || <p className="text-xs italic text-slate-400 text-center py-4">Tidak ada data alat.</p>}
-                        </div>
-                    </div>
-
-                    {/* Foto Bukti Before */}
-                    <div className="pt-4 border-t border-dashed">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Kondisi Awal (Before):</p>
-                        <div className="relative group">
-                            <img 
-                                src={`http://127.0.0.1:8000/storage/${data.foto_before}`} 
-                                alt="Bukti Sebelum" 
-                                className="w-full h-44 object-cover rounded-3xl shadow-md border-4 border-white grayscale-[20%] group-hover:grayscale-0 transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Info Waktu */}
-                    <div className="grid grid-cols-2 gap-4 text-center bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                {/* BODY */}
+                <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto bg-slate-50">
+                    
+                    {/* FOTO & WAKTU SECTION */}
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Bukti Check-In */}
                         <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Waktu Ambil</p>
-                            <p className="font-black text-slate-800 italic uppercase text-sm leading-none mt-1">
-                                {data.waktu_pinjam ? new Date(data.waktu_pinjam).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+                                Bukti Check-In
                             </p>
+                            <div className="bg-slate-200 rounded-2xl overflow-hidden border-2 border-slate-200">
+                                <img 
+                                    src={getImageUrl(data.foto_before)} 
+                                    alt="Check-in" 
+                                    className="w-full h-40 object-cover"
+                                    onError={(e) => {
+                                        e.currentTarget.src = 'https://placehold.co/400x300?text=No+Image';
+                                    }}
+                                />
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ruangan</p>
-                            <p className="font-black text-indigo-600 italic uppercase text-sm leading-none mt-1">
+
+                        {/* Waktu & Status */}
+                        <div className="space-y-3">
+                            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4">
+                                <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">
+                                    Waktu Ambil Alat
+                                </p>
+                                <div className="flex items-center gap-2 text-blue-600">
+                                    <i className="bi bi-calendar-event text-lg"></i>
+                                    <p className="text-sm font-black">
+                                        {formatDateTime(data.created_at || data.waktu_pinjam)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+                                    Status
+                                </p>
+                                <div className="bg-slate-800 rounded-xl p-3 border-2 border-slate-800">
+                                    <p className="text-base font-black text-white uppercase italic text-center">
+                                        {data.status}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* RINCIAN ITEM */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                                Rincian Item
+                            </p>
+                            <p className="text-sm font-black text-blue-600 uppercase italic">
                                 {data.ruangan_lab}
                             </p>
                         </div>
+                        
+                        <div className="space-y-2">
+                            {data.details && data.details.length > 0 ? (
+                                data.details.map((det: any) => (
+                                    <div 
+                                        key={det.id} 
+                                        className="bg-white border-2 border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-blue-300 transition-colors"
+                                    >
+                                        <p className="text-sm font-semibold text-slate-900">
+                                            {det.alat?.nama_alat || 'Unknown Item'}
+                                        </p>
+                                        <div className="bg-blue-500 text-white px-3 py-1 rounded-lg font-black text-sm">
+                                            ×{det.jumlah_pinjam}
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-slate-500 italic text-center py-4">
+                                    Tidak ada data alat
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* TUJUAN PENGGUNAAN */}
+                    <div className="bg-slate-800 rounded-2xl p-5 border-2 border-slate-800">
+                        <p className="text-xs font-bold text-slate-300 uppercase tracking-wide mb-2">
+                            Tujuan Penggunaan
+                        </p>
+                        <p className="text-sm text-white font-medium italic">
+                            "{data.tujuan_penggunaan || '-'}"
+                        </p>
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="p-6 bg-slate-50 border-t flex gap-3">
+                {/* FOOTER */}
+                <div className="p-6 bg-white border-t-2 border-slate-200">
                     <button 
                         onClick={onClose}
-                        className="flex-1 px-4 py-4 bg-white border-2 border-slate-200 rounded-2xl text-slate-600 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-sm"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black uppercase py-4 rounded-2xl transition-all text-sm tracking-wider shadow-lg"
                     >
-                        Tutup Detail
+                        Tutup
                     </button>
                 </div>
             </div>
