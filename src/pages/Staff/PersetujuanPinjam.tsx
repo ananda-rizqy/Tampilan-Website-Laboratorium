@@ -25,28 +25,49 @@ export default function PersetujuanPinjam() {
     fetchPeminjaman();
   }, [fetchPeminjaman]);
 
-  const handleSetujui = async (id: number) => {
+  const handleSetujui = async (item: any) => {
+    const isBooking = item.jenis_peminjaman === 'pesanan';
+    
+    const titleText = isBooking ? 'Setujui Pesanan (Booking)?' : 'Setujui Peminjaman Langsung?';
+    const subText = isBooking 
+      ? "Status akan menjadi BOOKING. Mahasiswa harus melakukan CHECK-IN saat mengambil alat nanti." 
+      : "Status akan menjadi ONGOING. Peminjaman alat dinyatakan AKTIF mulai saat ini.";
+
     const result = await Swal.fire({
-      title: 'Setujui Peminjaman?',
-      text: "Status akan berubah menjadi Booking (Siap Diambil).",
+      title: titleText,
+      text: subText,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonColor: '#059669',
+      confirmButtonColor: isBooking ? '#10b981' : '#4f46e5',
       cancelButtonColor: '#64748b',
-      confirmButtonText: 'YA, SETUJUI'
+      confirmButtonText: isBooking ? 'YA, SETUJU BOOKING' : 'YA, SETUJU LANGSUNG',
+      cancelButtonText: 'BATAL',
+      reverseButtons: true
     });
 
-    if (!result.isConfirmed) return;
-
-    try {
-      setProcessing(id);
-      const res = await api.post(`/peminjaman/${id}/setujui`);
-      Swal.fire('Berhasil!', res.data.message || 'Peminjaman telah disetujui.', 'success');
-      fetchPeminjaman();
-    } catch (err: any) {
-      Swal.fire('Gagal!', err.response?.data?.message || 'Gagal memproses persetujuan.', 'error');
-    } finally {
-      setProcessing(null);
+    if (result.isConfirmed) {
+      try {
+        setProcessing(item.id);
+        const res = await api.post(`/peminjaman/${item.id}/setujui`);
+        
+        await Swal.fire({
+          title: 'Berhasil!',
+          text: res.data.message,
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false
+        });
+        
+        fetchPeminjaman();
+      } catch (err: any) {
+        Swal.fire(
+          'Gagal!', 
+          err.response?.data?.message || 'Terjadi kesalahan saat memproses data.', 
+          'error'
+        );
+      } finally {
+        setProcessing(null);
+      }
     }
   };
 
@@ -58,7 +79,9 @@ export default function PersetujuanPinjam() {
       inputPlaceholder: 'Masukkan alasan...',
       inputAttributes: { 'aria-label': 'Masukkan alasan penolakan' },
       showCancelButton: true,
-      confirmButtonColor: '#dc2626'
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Batal',
+      confirmButtonText: 'Ya, Tolak Pengajuan'
     });
 
     if (!alasan) return;
@@ -99,47 +122,12 @@ export default function PersetujuanPinjam() {
         }
       />
 
-      {/* STATISTICS CARDS*/}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm">
-          <div>
-            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mb-2 italic">Total Masuk</p>
-            <p className="text-3xl font-black text-blue-900">{stats.total}</p>
-          </div>
-          <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-200">
-            <i className="bi bi-stack text-xl"></i>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm">
-          <div>
-            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest leading-none mb-2 italic">Menunggu</p>
-            <p className="text-3xl font-black text-amber-900">{stats.pending}</p>
-          </div>
-          <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-amber-200">
-            <i className="bi bi-clock-history text-xl"></i>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm">
-          <div>
-            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-2 italic">Booking</p>
-            <p className="text-3xl font-black text-emerald-900">{stats.booking}</p>
-          </div>
-          <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-            <i className="bi bi-calendar-check text-xl"></i>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm">
-          <div>
-            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none mb-2 italic">Berlangsung</p>
-            <p className="text-3xl font-black text-indigo-900">{stats.ongoing}</p>
-          </div>
-          <div className="w-12 h-12 bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-            <i className="bi bi-play-circle-fill text-xl"></i>
-          </div>
-        </div>
+      {/* STATISTICS CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in duration-500">
+        <StatCard title="Total Masuk" value={stats.total} icon="bi-stack" color="blue" />
+        <StatCard title="Menunggu" value={stats.pending} icon="bi-clock-history" color="amber" />
+        <StatCard title="Booking" value={stats.booking} icon="bi-calendar-check" color="emerald" />
+        <StatCard title="Berlangsung" value={stats.ongoing} icon="bi-play-circle-fill" color="indigo" />
       </div>
 
       {/* TABLE */}
@@ -185,7 +173,7 @@ export default function PersetujuanPinjam() {
                         {item.details?.map((det: any) => (
                           <div key={det.id} className="text-[10px] font-black text-slate-600 flex items-center gap-2 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
                             <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>
-                            {det.alat?.nama_alat} <span className="text-indigo-600 ml-auto">x{det.jumlah_pinjam}</span>
+                            {det.alat?.nama_alat} <span className="text-indigo-600 ml-auto font-black">x{det.jumlah_pinjam}</span>
                           </div>
                         ))}
                       </div>
@@ -206,9 +194,9 @@ export default function PersetujuanPinjam() {
                       {item.status === 'pending' ? (
                         <div className="flex items-center justify-center gap-3">
                           <button
-                            onClick={() => handleSetujui(item.id)}
-                            disabled={processing === item.id}
-                            className="p-3 bg-emerald-600 text-white rounded-2xl hover:bg-slate-900 transition-all shadow-lg shadow-emerald-100 active:scale-90"
+                            onClick={() => handleSetujui(item)} // FIX: Mengirim item (objek), bukan id
+                            disabled={processing !== null}
+                            className="p-3 bg-emerald-600 text-white rounded-2xl hover:bg-slate-900 transition-all shadow-lg shadow-emerald-100 active:scale-90 disabled:opacity-50"
                             title="Setujui"
                           >
                             <i className="bi bi-check-lg text-lg"></i>
@@ -216,8 +204,8 @@ export default function PersetujuanPinjam() {
                           
                           <button
                             onClick={() => handleTolak(item.id)}
-                            disabled={processing === item.id}
-                            className="p-3 bg-red-600 text-white rounded-2xl hover:bg-slate-900 transition-all shadow-lg shadow-red-100 active:scale-90"
+                            disabled={processing !== null}
+                            className="p-3 bg-red-600 text-white rounded-2xl hover:bg-slate-900 transition-all shadow-lg shadow-red-100 active:scale-90 disabled:opacity-50"
                             title="Tolak"
                           >
                             <i className="bi bi-x-lg text-lg"></i>
@@ -248,3 +236,26 @@ export default function PersetujuanPinjam() {
     </div>
   );
 }
+
+const StatCard = ({ title, value, icon, color }: any) => {
+  const colors: any = {
+    blue: "from-blue-50 to-blue-100 border-blue-200 text-blue-600 text-blue-900 shadow-blue-200 bg-blue-500",
+    amber: "from-amber-50 to-amber-100 border-amber-200 text-amber-600 text-amber-900 shadow-amber-200 bg-amber-500",
+    emerald: "from-emerald-50 to-emerald-100 border-emerald-200 text-emerald-600 text-emerald-900 shadow-emerald-200 bg-emerald-500",
+    indigo: "from-indigo-50 to-indigo-100 border-indigo-200 text-indigo-600 text-indigo-900 shadow-indigo-200 bg-indigo-500",
+  };
+
+  const c = colors[color].split(" ");
+
+  return (
+    <div className={`bg-gradient-to-br ${c[0]} ${c[1]} border ${c[2]} p-5 rounded-[1.5rem] flex items-center justify-between shadow-sm`}>
+      <div>
+        <p className={`text-[10px] font-black ${c[3]} uppercase tracking-widest leading-none mb-2 italic`}>{title}</p>
+        <p className={`text-3xl font-black ${c[4]}`}>{value}</p>
+      </div>
+      <div className={`w-12 h-12 ${c[6]} rounded-full flex items-center justify-center text-white shadow-lg ${c[5]}`}>
+        <i className={`bi ${icon} text-xl`}></i>
+      </div>
+    </div>
+  );
+};
