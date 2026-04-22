@@ -6,12 +6,12 @@ import Webcam from "react-webcam";
 
 // 1. DAFTAR RUANGAN SPESIFIK (Dropdown)
 const RUANGAN_SPESIFIK = [
-  "Laboratorium Barat 1",
-  "Laboratorium Barat 2",
-  "Laboratorium Timur 1",
-  "Laboratorium Timur 2",
-  "Laboratorium Broadcast",
-  "Laboratorium Jaringan Komputer"
+  "Lab. TK Barat I/01",         
+  "Lab. TK Barat I/02",            
+  "Lab. TK Barat I/04",            
+  "Lab. TK Timur I/01",           
+  "Lab. TK Timur I/02",            
+  "Lab. TK Timur II/01",           
 ];
 
 interface FormState {
